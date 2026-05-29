@@ -87,6 +87,8 @@ const jsonlStrategy: TransportStrategy = {
 const transportStrategies: Record<Transport, TransportStrategy> = {
   hook: hookStrategy,
   jsonl: jsonlStrategy,
+  "remote-hook": hookStrategy,
+  sse: hookStrategy,
 };
 
 // ── Individual event handlers ──────────────────────────────────────

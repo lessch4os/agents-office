@@ -2,7 +2,7 @@ import { AgentId } from "./agent-id";
 
 // ── Transport ──────────────────────────────────────────────────────
 
-export type Transport = "hook" | "jsonl";
+export type Transport = "hook" | "jsonl" | "remote-hook" | "sse";
 
 // ── Activity ───────────────────────────────────────────────────────
 
