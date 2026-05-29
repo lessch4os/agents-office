@@ -4,14 +4,15 @@ interface Config {
   serverUrl: string;
   password: string;
   socketPath: string;
+  verbose: boolean;
 }
 
 function loadConfig(): Config | null {
   // Env vars first
   const serverUrl = process.env.AGENTS_OFFICE_SERVER ?? "";
   const password = process.env.AGENTS_OFFICE_PASSWORD ?? "";
-  if (serverUrl && password) {
-    return { serverUrl, password, socketPath: resolveSocketPath() };
+    if (serverUrl && password) {
+    return { serverUrl, password, socketPath: resolveSocketPath(), verbose: !!process.env.AGENTS_OFFICE_VERBOSE };
   }
   // Config file ~/.agents-office/config.json
   const home = process.env.HOME ?? "/tmp";
@@ -21,13 +22,16 @@ function loadConfig(): Config | null {
       serverUrl: cfg.server_url ?? serverUrl,
       password: cfg.password ?? password,
       socketPath: resolveSocketPath(),
+      verbose: !!process.env.AGENTS_OFFICE_VERBOSE,
     };
   } catch {}
   // CLI args
   const args = process.argv.slice(2);
+  let verbose = false;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--server") return { serverUrl: args[++i] ?? "", password: args[++i] ?? "", socketPath: resolveSocketPath() };
-    if (args[i] === "--password") return { serverUrl: args[++i] ?? "", password: args[++i] ?? "", socketPath: resolveSocketPath() };
+    if (args[i] === "--server") return { serverUrl: args[++i] ?? "", password: args[++i] ?? "", socketPath: resolveSocketPath(), verbose: verbose || !!process.env.AGENTS_OFFICE_VERBOSE };
+    if (args[i] === "--password") { const p = args[++i] ?? ""; return { serverUrl: args[++i] ?? "", password: p, socketPath: resolveSocketPath(), verbose: verbose || !!process.env.AGENTS_OFFICE_VERBOSE }; }
+    if (args[i] === "--verbose" || args[i] === "-v") verbose = true;
   }
   return null;
 }
@@ -48,6 +52,9 @@ if (!cfg) {
 const SOCKET_PATH = cfg.socketPath;
 const SERVER_URL = cfg.serverUrl;
 const PASSWORD = cfg.password;
+const VERBOSE = cfg.verbose;
+
+const log = VERBOSE ? (...args: unknown[]) => console.error("[forwarder]", ...args) : () => {};
 
 // ── WebSocket connection to server ────────────────────────────────
 
@@ -68,15 +75,17 @@ function connectWs(): void {
     // Flush buffer
     for (const msg of sendBuf.splice(0)) {
       ws!.send(msg);
+      log("flushed", msg.slice(0, 80));
     }
   };
 
-  ws.onclose = () => {
+  ws.onclose = (ev) => {
+    log("ws closed", ev.code, ev.reason);
     ws = null;
     reconnectTimer = setTimeout(connectWs, 3000);
   };
 
-  ws.onerror = () => { ws?.close(); };
+  ws.onerror = (ev) => { log("ws error", ev); ws?.close(); };
 
   ws.onmessage = (ev) => {
     // Server can send ping, forwarder replies pong
@@ -89,6 +98,7 @@ function connectWs(): void {
 
 function send(payload: object): void {
   const msg = JSON.stringify(payload);
+  log("send", msg.slice(0, 120));
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(msg);
   } else {
@@ -102,6 +112,7 @@ function send(payload: object): void {
 try { require("fs").unlinkSync(SOCKET_PATH); } catch {}
 
 const server = net.createServer((socket) => {
+  log("unix client connected");
   let buf = "";
   socket.on("data", (chunk: Buffer) => {
     buf += chunk.toString();
@@ -112,13 +123,15 @@ const server = net.createServer((socket) => {
       if (!trimmed) continue;
       try {
         const payload = JSON.parse(trimmed);
+        log("received", (payload as Record<string, unknown>).hook_event_name ?? "event");
         send(payload);
       } catch (err) {
-        // Silently skip malformed lines
+        log("malformed line", (err as Error).message);
       }
     }
   });
-  socket.on("error", () => {});
+  socket.on("error", (err) => log("unix error", err));
+  socket.on("close", () => log("unix client disconnected"));
 });
 
 server.listen(SOCKET_PATH, () => {
