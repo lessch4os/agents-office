@@ -14,7 +14,7 @@ import { PricingManager } from "./pricing";
 import { EmitManager } from "./emitter";
 import { decodeHookPayload } from "./decoder";
 
-const VERSION = "0.1.12";
+const VERSION = "0.1.13";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ─────────────────────────────────────────────────────────
