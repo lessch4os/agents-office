@@ -53,6 +53,7 @@ const sessionStartDecoder: HookDecoder = {
     const cwd = getStr(v, "cwd") ?? "";
     const contextWindowLimit = getNum(v, "context_window_limit");
     const parentSessionId = getStr(v, "parent_session_id");
+    const machineName = getStr(v, "machine_name");
     return [{
       type: "sessionStart" as const,
       agentId: ctx.agentId,
@@ -63,6 +64,7 @@ const sessionStartDecoder: HookDecoder = {
       parentSessionId,
       agentType: ctx.agentType,
       contextWindowLimit,
+      machineName: machineName ?? undefined,
     }];
   },
 };

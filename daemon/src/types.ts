@@ -49,6 +49,8 @@ export type AgentEvent =
       parentSessionId?: string;
       agentType: string | null;
       contextWindowLimit?: number;
+      origin?: string;
+      machineName?: string;
     }
   | {
       type: "activityStart";

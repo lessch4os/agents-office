@@ -26,6 +26,8 @@ export interface WireSlot {
   session_id: string;
   cwd: string;
   label: string;
+  origin: string;
+  machine_name: string | null;
   state: WireActivityState;
   state_started_at_ms: number;
   last_event_at_ms: number;
@@ -83,6 +85,8 @@ export function slotToWire(slot: AgentSlot): WireSlot {
     session_id: slot.sessionId,
     cwd: slot.cwd,
     label: slot.label,
+    origin: slot.origin,
+    machine_name: slot.machineName,
     state: activityStateToWire(slot.state),
     state_started_at_ms: slot.stateStartedAt,
     last_event_at_ms: slot.lastEventAt,

@@ -127,9 +127,15 @@ const sessionStartHandler: EventHandler = {
     ctx.nextLabelN.value++;
     const hasCwd = event.cwd.length > 0 && event.cwd !== "/" && basename(event.cwd).length > 0;
     const prefix = sourcePrefixes[event.source] ?? event.source.slice(0, 2);
+    const origin = event.origin ?? (ctx.transport === "remote-hook" ? "remote" : "local");
+    const machineName = event.machineName;
+    const originSuffix = origin === "remote" && machineName ? `[${machineName.split(".")[0]}]`
+      : origin === "remote" ? "[remote]"
+      : origin === "jsonl" ? "[jsonl]"
+      : "";
     const label = hasCwd
-      ? `${prefix}\u00b7${basename(event.cwd)}`
-      : `${prefix}#${ctx.nextLabelN.value}`;
+      ? `${prefix}\u00b7${basename(event.cwd)}${originSuffix}`
+      : `${prefix}#${ctx.nextLabelN.value}${originSuffix}`;
 
     let parentId = event.parentId;
     if (!parentId && event.parentSessionId) {
@@ -147,6 +153,8 @@ const sessionStartHandler: EventHandler = {
       sessionId: event.sessionId,
       cwd: event.cwd,
       label,
+      origin,
+      machineName,
       state: { type: "idle" },
       stateStartedAt: ctx.now,
       lastEventAt: ctx.now,

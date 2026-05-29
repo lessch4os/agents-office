@@ -1,4 +1,5 @@
 import * as net from "net";
+import * as os from "os";
 
 interface Config {
   serverUrl: string;
@@ -94,7 +95,8 @@ function connectWs(): void {
 }
 
 function send(payload: object): void {
-  const msg = JSON.stringify(payload);
+  const withMachine = { ...(payload as Record<string, unknown>), machine_name: os.hostname() };
+  const msg = JSON.stringify(withMachine);
   log("send", msg.slice(0, 120));
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(msg);

@@ -16,6 +16,8 @@ export interface WireAgent {
   session_id: string
   cwd: string
   label: string
+  origin: string
+  machine_name: string | null
   state: WireActivityState
   state_started_at_ms: number
   last_event_at_ms: number

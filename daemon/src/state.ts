@@ -39,6 +39,8 @@ export interface AgentSlot {
   sessionId: string;
   cwd: string;
   label: string;
+  origin: string;
+  machineName: string | null;
   state: ActivityState;
   stateStartedAt: number;
   lastEventAt: number;
