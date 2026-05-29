@@ -50,7 +50,7 @@ function parseArgs(): Config {
     agBrainRoot: process.env.HOME ? `${process.env.HOME}/.gemini/antigravity-cli/brain` : "/tmp",
     opencodeSseUrl: null,
     maxDesks: 16,
-    webRoot: resolve(__dirname, "../web/dist"),
+    webRoot: resolve(__dirname, "../../web/dist"),
     verbose: false,
     dbPath: process.env.AGENTS_OFFICE_DB ?? `${home}/.agents-office/sessions.db`,
     password: process.env.AGENTS_OFFICE_PASSWORD ?? null,

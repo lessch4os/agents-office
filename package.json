@@ -1,6 +1,6 @@
 {
   "name": "@lessch4os/agents-office",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Real-time office dashboard for AI coding agents — Claude Code, OpenCode, Antigravity",
   "type": "module",
   "bin": {
@@ -25,9 +25,19 @@
   },
   "homepage": "https://agents-office.lessch4os.com",
   "bugs": "https://github.com/lessch4os/agents-office/issues",
-  "keywords": ["agents-office", "claude-code", "opencode", "antigravity", "ai-agents", "dashboard"],
+  "keywords": [
+    "agents-office",
+    "claude-code",
+    "opencode",
+    "antigravity",
+    "ai-agents",
+    "dashboard"
+  ],
   "license": "MIT",
-  "workspaces": ["daemon", "web"],
+  "workspaces": [
+    "daemon",
+    "web"
+  ],
   "scripts": {
     "dev": "bash scripts/dev.sh",
     "dev:daemon": "bun run --cwd daemon dev",
