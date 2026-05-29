@@ -65,11 +65,7 @@ let sendBuf: string[] = [];
 
 function connectWs(): void {
   if (ws) { ws.close(); ws = null; }
-  try {
-    ws = new WebSocket(SERVER_URL, [], { headers: { Authorization: `Bearer ${PASSWORD}` } } as any);
-  } catch {
-    ws = new WebSocket(SERVER_URL);
-  }
+  ws = new WebSocket(`${SERVER_URL}?password=${encodeURIComponent(PASSWORD)}`);
 
   ws.onopen = () => {
     console.error(`forwarder: connected to ${SERVER_URL}`);
