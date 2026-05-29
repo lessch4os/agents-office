@@ -18,16 +18,16 @@ function bunRun(scriptRel, extraArgs) {
 switch (cmd) {
   case "install":
   case "install:all":
-    bunRun("bin/install-hooks.js", args);
-    bunRun("bin/install-opencode.js", args);
+    bunRun("bin/install-hooks.cjs", args);
+    bunRun("bin/install-opencode.cjs", args);
     break;
   case "install-hooks":
   case "install:cc":
-    bunRun("bin/install-hooks.js", args);
+    bunRun("bin/install-hooks.cjs", args);
     break;
   case "install-opencode":
   case "install:oc":
-    bunRun("bin/install-opencode.js", args);
+    bunRun("bin/install-opencode.cjs", args);
     break;
   case "forwarder":
   case "forward":
