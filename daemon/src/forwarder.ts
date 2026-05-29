@@ -9,31 +9,32 @@ interface Config {
 
 function loadConfig(): Config | null {
   // Env vars first
-  const serverUrl = process.env.AGENTS_OFFICE_SERVER ?? "";
-  const password = process.env.AGENTS_OFFICE_PASSWORD ?? "";
-    if (serverUrl && password) {
-    return { serverUrl, password, socketPath: resolveSocketPath(), verbose: !!process.env.AGENTS_OFFICE_VERBOSE };
-  }
+  let serverUrl = process.env.AGENTS_OFFICE_SERVER ?? "";
+  let password = process.env.AGENTS_OFFICE_PASSWORD ?? "";
+  let verbose = !!process.env.AGENTS_OFFICE_VERBOSE;
+  let socketPath = resolveSocketPath();
+
   // Config file ~/.agents-office/config.json
-  const home = process.env.HOME ?? "/tmp";
-  try {
-    const cfg = JSON.parse(require("fs").readFileSync(`${home}/.agents-office/config.json`, "utf-8")) as Record<string, string>;
-    return {
-      serverUrl: cfg.server_url ?? serverUrl,
-      password: cfg.password ?? password,
-      socketPath: resolveSocketPath(),
-      verbose: !!process.env.AGENTS_OFFICE_VERBOSE,
-    };
-  } catch {}
-  // CLI args
-  const args = process.argv.slice(2);
-  let verbose = false;
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--server") return { serverUrl: args[++i] ?? "", password: args[++i] ?? "", socketPath: resolveSocketPath(), verbose: verbose || !!process.env.AGENTS_OFFICE_VERBOSE };
-    if (args[i] === "--password") { const p = args[++i] ?? ""; return { serverUrl: args[++i] ?? "", password: p, socketPath: resolveSocketPath(), verbose: verbose || !!process.env.AGENTS_OFFICE_VERBOSE }; }
-    if (args[i] === "--verbose" || args[i] === "-v") verbose = true;
+  if (!serverUrl || !password) {
+    const home = process.env.HOME ?? "/tmp";
+    try {
+      const cfg = JSON.parse(require("fs").readFileSync(`${home}/.agents-office/config.json`, "utf-8")) as Record<string, string>;
+      if (!serverUrl) serverUrl = cfg.server_url ?? "";
+      if (!password) password = cfg.password ?? "";
+    } catch {}
   }
-  return null;
+
+  // CLI args (override env/file)
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--server") serverUrl = args[++i] ?? "";
+    else if (args[i] === "--password") password = args[++i] ?? "";
+    else if (args[i] === "--socket") socketPath = args[++i] ?? socketPath;
+    else if (args[i] === "--verbose" || args[i] === "-v") verbose = true;
+  }
+
+  if (!serverUrl || !password) return null;
+  return { serverUrl, password, socketPath, verbose };
 }
 
 function resolveSocketPath(): string {
