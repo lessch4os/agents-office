@@ -89,6 +89,23 @@ bun run daemon/src/main.ts --port 8080 --relay-to wss://server/hook --password s
 AGENTS_OFFICE_SERVER=wss://server/hook AGENTS_OFFICE_PASSWORD=secret ./daemon/agents-office-forwarder
 ```
 
+## Client setup (laptop)
+
+Install hooks and plugins on your laptop so your local agents show up on the server dashboard:
+
+```bash
+# Via npx:
+npx @lessch4os/agents-office install-hooks      # CC hooks
+npx @lessch4os/agents-office install-opencode   # OC plugin
+
+# Or both at once:
+npx @lessch4os/agents-office install
+
+# Then run forwarder to relay to server:
+npx @lessch4os/agents-office forwarder \
+  --server wss://your-server/hook --password <your-password>
+```
+
 ### Development
 
 ```bash

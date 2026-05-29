@@ -10,3 +10,4 @@ dist/
 daemon/agents-office
 daemon/agents-office-hook
 daemon/agents-office-forwarder
+*.tgz
