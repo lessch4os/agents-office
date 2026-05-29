@@ -199,6 +199,13 @@ async function runLocal(cfg: Config) {
   const clients = new Set<WebSocket>();
   const em = new EmitManager(scene, reducer, store, clients, fileLog, log);
 
+  // Restore active sessions from SQLite (survives daemon restart)
+  const restored = store.restoreActiveSessions(Date.now());
+  for (const event of restored) {
+    em.emit("restore", event);
+  }
+  if (restored.length > 0) log.info(`restored ${restored.filter(e => e.type === "sessionStart").length} active sessions`);
+
   // Start hook socket
   try {
     const hook = await HookSocketListener.bind(cfg.socketPath, log);

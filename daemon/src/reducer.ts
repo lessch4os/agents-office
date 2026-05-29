@@ -84,9 +84,21 @@ const jsonlStrategy: TransportStrategy = {
   },
 };
 
+const restoreStrategy: TransportStrategy = {
+  shouldDrop(event, _scene, ctx) {
+    const idKey = event.agentId.value;
+    if (event.type === "tokenUsage" && ctx.hookActiveAgents.has(idKey)) return true;
+    return false;
+  },
+  onBeforeApply() {
+    // no-op for restore
+  },
+};
+
 const transportStrategies: Record<Transport, TransportStrategy> = {
   hook: hookStrategy,
   jsonl: jsonlStrategy,
+  "restore": restoreStrategy,
   "remote-hook": hookStrategy,
   sse: hookStrategy,
 };

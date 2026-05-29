@@ -1,9 +1,10 @@
-import { Database } from "bun:sqlite";
+  import { Database } from "bun:sqlite";
 import * as fs from "fs";
 import * as path from "path";
 import type { AgentEvent } from "./types";
 import type { AgentSlot } from "./state";
 import { PricingManager } from "./pricing";
+import { AgentId } from "./agent-id";
 
 // ── Wire types ─────────────────────────────────────────────────────
 
@@ -255,6 +256,55 @@ export class SessionStore {
         break;
       }
     }
+  }
+
+  restoreActiveSessions(now: number, maxAgeMs = 3600000): AgentEvent[] {
+    const cutoff = now - maxAgeMs;
+    const rows = this.db.query<Record<string, unknown>, [number]>(
+      `SELECT * FROM sessions WHERE ended_at IS NULL AND started_at > ? ORDER BY started_at ASC`
+    ).all(cutoff);
+
+    const events: AgentEvent[] = [];
+    for (const row of rows) {
+      const sessionId = row["session_id"] as string;
+      const source = row["source"] as string;
+      const agentType = (row["agent_type"] as string | null) ?? null;
+      const agentId = AgentId.fromParts(source, sessionId);
+      const cwd = row["cwd"] as string ?? "";
+      const contextWindowLimit = (row["context_window_limit"] as number) ?? 0;
+      const label = row["label"] as string ?? "";
+      const modelName = (row["model_name"] as string | null) ?? null;
+
+      events.push({
+        type: "sessionStart",
+        agentId,
+        source,
+        sessionId,
+        cwd,
+        parentId: null,
+        parentSessionId: null,
+        agentType,
+        contextWindowLimit,
+      });
+
+      if (label) {
+        events.push({
+          type: "rename",
+          agentId,
+          label,
+        });
+      }
+
+      if (modelName) {
+        events.push({
+          type: "modelUpdate",
+          agentId,
+          modelId: modelName,
+          contextWindowLimit,
+        });
+      }
+    }
+    return events;
   }
 
   listSessions(opts: { limit: number; offset: number; tag?: string; source?: string }): WireSessionSummary[] {
