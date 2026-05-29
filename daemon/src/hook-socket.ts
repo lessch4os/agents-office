@@ -1,15 +1,29 @@
 import * as net from "net";
 import * as fs from "fs";
+import * as path from "path";
 import { decodeHookPayload } from "./decoder";
 import type { EventHandler } from "./types";
 import type { Logger } from "./logger";
 
 const MAX_CONCURRENT_CONNS = 128;
-// No idle timeout — the plugin manages its own connection lifecycle.
-// An aggressive timeout (e.g. 1s) kills connections during normal gaps
-// between events (tool execute → LLM thinking → step-finish), causing
-// the plugin to lose its socket mid-session.
 const CONN_TIMEOUT_MS = 0;
+
+function createCompatSymlinks(actualPath: string, logger: Logger): void {
+  const commonDirs = ["/run/user/0", "/run/user/1000"];
+  for (const dir of commonDirs) {
+    if (dir === path.dirname(actualPath)) continue;
+    const link = `${dir}/agents-office.sock`;
+    try {
+      fs.unlinkSync(link);
+    } catch {}
+    try {
+      fs.symlinkSync(actualPath, link);
+      logger.info(`hook symlink: ${link} → ${actualPath}`);
+    } catch {
+      // Directory may not exist — that's fine
+    }
+  }
+}
 
 export class HookSocketListener {
   private server: net.Server | null = null;
@@ -31,7 +45,10 @@ export class HookSocketListener {
       const listener = new HookSocketListener(path, logger ?? { verbose: () => {}, info: console.log, warn: console.warn, error: console.error });
       listener.server = server;
       server.on("error", reject);
-      server.listen(path, () => resolve(listener));
+      server.listen(path, () => {
+        createCompatSymlinks(path, listener.logger);
+        resolve(listener);
+      });
     });
   }
 
@@ -100,6 +117,10 @@ export class HookSocketListener {
 
   close(): void {
     this.server?.close();
-    const _ = this.path;
+    const commonDirs = ["/run/user/0", "/run/user/1000"];
+    for (const dir of commonDirs) {
+      if (dir === path.dirname(this.path)) continue;
+      try { fs.unlinkSync(`${dir}/agents-office.sock`); } catch {}
+    }
   }
 }
