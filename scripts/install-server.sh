@@ -12,6 +12,8 @@ step()  { printf "${CYAN}==>${NC} %s\n" "$*" >&2; }
 ok()    { printf "${GREEN}  ✓${NC} %s\n" "$*" >&2; }
 fail()  { printf "${RED}  ✗${NC} %s\n" "$*" >&2; exit 1; }
 
+SERVER_HOSTNAME="${SERVER_HOSTNAME:-agents-office.lessch4os.com}"
+
 step "agents-office server installer"
 echo ""
 
@@ -50,7 +52,7 @@ if [ ! -f "$CFG_DIR/config.json" ]; then
   fi
   cat > "$CFG_DIR/config.json" <<EOF
 {
-  "server_url": "wss://agents-office.lessch4os.com/hook",
+  "server_url": "wss://$SERVER_HOSTNAME/hook",
   "password": "$PASSWORD"
 }
 EOF

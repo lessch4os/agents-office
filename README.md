@@ -34,11 +34,13 @@ Each running CC (Claude Code), Antigravity, or OpenCode session shows up as an a
 └──────────────────┘                          └──────────────────┘
 ```
 
-The daemon can run in three configurations:
+The daemon can run in three configurations (all use the same compiled binary):
 
 **Server mode** — daemon on VPS with `--password`. Serves web UI + accepts remote hooks.
 ```
 ./daemon/agents-office --port 8080 --password mysecret
+# One-command server setup:
+curl -fsSL https://raw.githubusercontent.com/lessch4os/agents-office/main/scripts/install-server.sh | bash
 ```
 
 **Client forwarder** — tiny binary on laptop, forwards local hooks to server.
@@ -53,48 +55,107 @@ The daemon can run in three configurations:
 
 ## Quick start
 
+Note: the `npx`/`bunx` commands below require **Bun** installed (`curl -fsSL https://bun.sh/install | bash`).  
+The compiled binary is standalone — no runtime dependencies.
+
 ```bash
+# Pre-built binary (standalone, no Bun needed)
+./daemon/agents-office --port 8080
+
 # Via npm (requires bun)
 npx @lessch4os/agents-office --port 8080
 
-# Or via bunx
-bunx @lessch4os/agents-office --port 8080
-
-# Or from source
+# From source
 bun install
 bun run daemon/src/main.ts --port 8080
+
+# Convenience script (builds web dist + starts daemon)
+bash run.sh --port 8080
 ```
 
 Open http://localhost:8080 in your browser.
 
-### Options
+### Homebrew
 
 ```bash
-bun run daemon/src/main.ts --port 8080 --max-desks 16
+brew tap lessch4os/agents-office
+brew install agents-office
 
-# Server mode (auth + web UI + remote hook endpoint):
+# Start as a background service:
+brew services start agents-office
+```
+
+### Server install (one-command)
+
+Quick-setup a server with systemd service, auto-generated password, and automatic Bun install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lessch4os/agents-office/main/scripts/install-server.sh | bash
+```
+
+### Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--port <n>` | `8080` | HTTP/WebSocket listen port |
+| `--max-desks <n>` | `16` | Number of agent desks in the office |
+| `--password <s>` | — | Auth password (enables login page + hook auth) |
+| `--username <s>` | `agents-office` | Login username (requires `--password`) |
+| `--relay-to <url>` | — | Forward all events to a remote server WebSocket |
+| `--web-root <path>` | `../web/dist` | Path to the web frontend build output |
+| `--socket <path>` | `/tmp/agents-office-{uid}.sock` | Unix socket path for hook shim |
+| `--projects-root <path>` | `~/.claude/projects` | Claude Code projects directory to watch |
+| `--ag-brain-root <path>` | `~/.gemini/antigravity-cli/brain` | Antigravity brain directory |
+| `--opencode-sse-url <url>` | — | OpenCode SSE event stream URL |
+| `--db <path>` | `~/.agents-office/sessions.db` | SQLite database path |
+| `--verbose`, `-v` | — | Verbose logging |
+| `--install` | — | Install hooks + OC plugin then exit |
+
+Example — server mode with auth:
+```bash
 bun run daemon/src/main.ts --port 8080 --password secret --username agents-office
+```
 
-# Daemon with relay to remote server (local UI + remote):
+Example — daemon with relay:
+```bash
 bun run daemon/src/main.ts --port 8080 --relay-to wss://server/hook --password secret
 ```
 
 ### Client forwarder
 
+Tiny binary — no daemon needed. Forwards local CC/OC hooks to a remote server.
+
 ```bash
-# Tiny binary — no daemon needed. Forwards local CC/OC hooks to server.
+# Pre-built binary
 ./daemon/agents-office-forwarder --server wss://server/hook --password secret
+
+# Via npx (requires bun)
+npx @lessch4os/agents-office forwarder \
+  --server wss://server/hook --password secret
 
 # Or via env vars:
 AGENTS_OFFICE_SERVER=wss://server/hook AGENTS_OFFICE_PASSWORD=secret ./daemon/agents-office-forwarder
 ```
+
+### Environment variables
+
+| Variable | Command | Purpose |
+|---|---|---|
+| `AGENTS_OFFICE_PASSWORD` | daemon, forwarder | Auth password |
+| `AGENTS_OFFICE_SERVER` | forwarder | Remote server WebSocket URL |
+| `AGENTS_OFFICE_SOCKET` | daemon, forwarder | Override Unix socket path |
+| `AGENTS_OFFICE_DB` | daemon | Override SQLite database path |
+| `AGENTS_OFFICE_DAEMON_LOG` | daemon | Override daemon log file path |
+| `AGENTS_OFFICE_USERNAME` | daemon | Login username |
+| `AGENTS_OFFICE_RELAY_TO` | daemon | Relay target WebSocket URL |
+| `AGENTS_OFFICE_VERBOSE` | forwarder | Enable verbose logging |
 
 ## Client setup (laptop)
 
 Install hooks and plugins on your laptop so your local agents show up on the server dashboard:
 
 ```bash
-# Via npx:
+# Via npx (requires bun):
 npx @lessch4os/agents-office install-hooks      # CC hooks
 npx @lessch4os/agents-office install-opencode   # OC plugin
 
@@ -105,6 +166,30 @@ npx @lessch4os/agents-office install
 npx @lessch4os/agents-office forwarder \
   --server wss://your-server/hook --password <your-password>
 ```
+
+## Uninstall
+
+```bash
+# Remove CC hooks from ~/.claude/settings.json
+bun run uninstall-hooks
+
+# Remove OC plugin from ~/.config/opencode/plugins/
+bun run uninstall-opencode
+
+# Remove data directory
+rm -rf ~/.agents-office/
+```
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `EADDRINUSE` on startup | Port already taken | Use `--port <other>` or kill the existing process |
+| Web UI shows blank page | Web frontend not built | Run `bun run build:web` or use `run.sh` |
+| Hook shim "connection refused" | Daemon not running | Start the daemon first, or check `--socket` path matches |
+| No agents appearing | Hook/plugin not installed | Run `npx @lessch4os/agents-office install` |
+| Forwarder won't connect | Wrong password or server URL | Check `--password` and `--server` match the server config |
+| Permission denied on socket | Socket in a restricted dir | Use `AGENTS_OFFICE_SOCKET=/tmp/my.sock` or `--socket` flag |
 
 ### Development
 

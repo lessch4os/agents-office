@@ -138,6 +138,8 @@ Bypass in an emergency with `git push --no-verify` or `SKIP_PREFLIGHT=1 git push
 4. **Bun daemon has no terminal dependencies.** It's a headless HTTP/WS server.
 5. **Wire protocol is snake_case** matching `web/src/types.ts`. `WireActivityState` uses capitalized type discriminators (`"Idle"`, `"Active"`, `"Waiting"`).
 6. **AgentId** uses FNV-1a 64-bit hashing with BigInt for exact u64 arithmetic, converted to Number for the wire protocol.
+7. **`VERSION` constant in `main.ts` and `forwarder.ts`** must match `package.json` version. The compiled `--version` flag reads this constant.
+8. **`Formula/agents-office.rb`** must stay in sync with the build process. If build steps or binary names change, update the formula. Tag `v{VERSION}` must exist before brew users can install.
 
 ## Known sharp edges
 

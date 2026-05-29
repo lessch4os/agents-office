@@ -1,6 +1,8 @@
 import * as net from "net";
 import * as os from "os";
 
+const VERSION = "0.1.12";
+
 interface Config {
   serverUrl: string;
   password: string;
@@ -42,6 +44,28 @@ function resolveSocketPath(): string {
   if (process.env.AGENTS_OFFICE_SOCKET) return process.env.AGENTS_OFFICE_SOCKET;
   if (process.env.XDG_RUNTIME_DIR) return `${process.env.XDG_RUNTIME_DIR}/agents-office.sock`;
   return `/tmp/agents-office-${process.getuid?.() ?? 0}.sock`;
+}
+
+const args = process.argv.slice(2);
+if (args.includes("--version") || args.includes("-V")) {
+  console.log(VERSION);
+  process.exit(0);
+}
+if (args.includes("--help") || args.includes("-h")) {
+  console.log(`agents-office-forwarder v${VERSION}`);
+  console.log("");
+  console.log("Usage: agents-office-forwarder [options]");
+  console.log("");
+  console.log("Options:");
+  console.log("  --server <url>        Remote server WebSocket URL (required)");
+  console.log("  --password <s>        Server password (required)");
+  console.log("  --socket <path>       Local Unix socket path");
+  console.log("  --verbose, -v         Verbose logging");
+  console.log("  --version             Print version and exit");
+  console.log("  --help                Print this help and exit");
+  console.log("");
+  console.log("Env vars: AGENTS_OFFICE_SERVER, AGENTS_OFFICE_PASSWORD, AGENTS_OFFICE_SOCKET, AGENTS_OFFICE_VERBOSE");
+  process.exit(0);
 }
 
 const cfg = loadConfig();

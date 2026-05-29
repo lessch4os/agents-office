@@ -14,6 +14,7 @@ import { PricingManager } from "./pricing";
 import { EmitManager } from "./emitter";
 import { decodeHookPayload } from "./decoder";
 
+const VERSION = "0.1.12";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ─────────────────────────────────────────────────────────
@@ -143,8 +144,39 @@ ${error ? '<div class="error">invalid credentials</div>' : ""}
 
 // ── Main ──────────────────────────────────────────────────────────
 
+function printUsage(): void {
+  console.log(`agents-office v${VERSION}`);
+  console.log("");
+  console.log("Usage: agents-office [options]");
+  console.log("");
+  console.log("Options:");
+  console.log("  --port <n>            HTTP/WebSocket port (default: 8080)");
+  console.log("  --password <s>        Auth password (enables login + hook auth)");
+  console.log("  --username <s>        Login username (default: agents-office)");
+  console.log("  --relay-to <url>      Forward events to remote server");
+  console.log("  --web-root <path>     Path to web frontend build output");
+  console.log("  --socket <path>       Unix socket path for hook shim");
+  console.log("  --projects-root <path> Claude Code projects directory");
+  console.log("  --ag-brain-root <path> Antigravity brain directory");
+  console.log("  --opencode-sse-url    OpenCode SSE event stream URL");
+  console.log("  --max-desks <n>       Number of agent desks (default: 16)");
+  console.log("  --db <path>           SQLite database path");
+  console.log("  --install             Install hooks + OC plugin then exit");
+  console.log("  --verbose, -v         Verbose logging");
+  console.log("  --version             Print version and exit");
+  console.log("  --help                Print this help and exit");
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes("--version") || args.includes("-V")) {
+    console.log(VERSION);
+    process.exit(0);
+  }
+  if (args.includes("--help") || args.includes("-h")) {
+    printUsage();
+    process.exit(0);
+  }
   if (args.includes("--install") || args.includes("install")) {
     await runInstall();
     return;
@@ -190,7 +222,19 @@ async function runInstall(): Promise<void> {
 
 async function runLocal(cfg: Config) {
   const log = createLogger(cfg.verbose);
-  log.info(`agents-office daemon starting (port=${cfg.port})`);
+  log.info(`agents-office daemon v${VERSION} starting (port=${cfg.port})`);
+
+  // Validate web root
+  const indexPath = `${cfg.webRoot}/index.html`;
+  try {
+    const f = Bun.file(indexPath);
+    if (f.size === 0) throw new Error("empty");
+  } catch {
+    log.warn(`web root not found: ${cfg.webRoot}/index.html`);
+    log.warn("  web UI will not be served. Build it with: bun run build:web");
+    log.warn("  or set --web-root to the correct path.");
+  }
+
   const fileLog = createFileAppender(defaultDaemonLogPath());
 
   const scene = new SceneState(cfg.maxDesks);
