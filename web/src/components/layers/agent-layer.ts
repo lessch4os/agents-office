@@ -158,6 +158,7 @@ export class AgentLayer {
     agentMap: Map<number, WireAgent>,
     nowMs: number,
     t: number,
+    selectedId?: number,
   ): void {
     const presentIds = new Set(entities.map((e) => e.id))
 
@@ -247,6 +248,16 @@ export class AgentLayer {
           const a2 = alpha * (i / 3)
           visual.glowGfx.circle(0, 0, r2).fill({ color: toHex(cr, cg, cb), alpha: a2 })
         }
+      }
+
+      // Selection glow: pulsing orange/yellow ring
+      if (entity.id === selectedId) {
+        const selPulse = 0.5 + 0.5 * Math.sin(t * 0.006)
+        const selRadius = 12 + 4 * selPulse
+        const selAlpha = 0.2 + 0.3 * selPulse
+        visual.glowGfx.circle(0, 0, selRadius + 4).fill({ color: 0xff8800, alpha: selAlpha * 0.5 })
+        visual.glowGfx.circle(0, 0, selRadius + 2).fill({ color: 0xffaa00, alpha: selAlpha * 0.7 })
+        visual.glowGfx.circle(0, 0, selRadius).fill({ color: 0xffcc00, alpha: selAlpha })
       }
     }
   }

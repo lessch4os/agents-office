@@ -174,6 +174,7 @@ export function OfficePixi({ scene, logEntries }: Props) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; agent: WireAgent } | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<WireAgent | null>(null)
+  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
   const [modalTab, setModalTab] = useState<"overview" | "logs" | "stats" | "tree">("overview")
 
   // Canvas dimensions (driven by max_desks)
@@ -405,7 +406,7 @@ export function OfficePixi({ scene, logEntries }: Props) {
 
         // Render all layers
         deskLayerRef.current?.update(s?.agents ?? {}, maxDesks, nowMs)
-        agentLayerRef.current?.update(entities, agentMapAll, nowMs, t)
+        agentLayerRef.current?.update(entities, agentMapAll, nowMs, t, selectedAgentId ?? undefined)
         fxRef.current?.update(dt, nowMs, canvasW, canvasH)
         uiLayerRef.current?.update(entities, agentMapAll, bubblesRef.current, nowMs, canvasH)
         } catch (err) {
@@ -524,6 +525,15 @@ export function OfficePixi({ scene, logEntries }: Props) {
   }
 
   // ── Mouse handlers ──
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (contextMenu) return // right-click menu open, ignore
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const { x, y } = toCanvasCoords(e.clientX, e.clientY, rect)
+    const found = findAgent(x, y)
+    setSelectedAgentId(found ? found.agent_id : null)
+  }
+
   const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     const rect = canvasRef.current?.getBoundingClientRect()
@@ -552,6 +562,7 @@ export function OfficePixi({ scene, logEntries }: Props) {
         width={canvasW}
         height={canvasH}
         onContextMenu={handleContextMenu}
+        onClick={handleCanvasClick}
         style={{
           display: "block",
           margin: "0 auto",
