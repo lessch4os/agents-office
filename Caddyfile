@@ -1,0 +1,47 @@
+# Playground server - through Cloudflare
+playground-agents-office.lessch4os.com {
+	reverse_proxy localhost:8080
+}
+
+# OpenCode web interface - through Cloudflare with origin pull
+opencode.lessch4os.com {
+	encode zstd gzip
+
+	reverse_proxy localhost:4096 {
+		# Esto le dice a OpenCode que la petición viene de este dominio
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+
+		# Importante para los WebSockets de VS Code
+		header_up Upgrade {>Upgrade}
+		header_up Connection {>Connection}
+	}
+}
+
+# Scope 3 Pipeline — Caddyfile
+# Caddy automatically provisions TLS via Let's Encrypt.
+# Make sure both DNS A records point to this server before starting.
+
+# FastAPI backend — OpenRouter proxy
+backend.lessch4os.com {
+	encode zstd gzip
+	reverse_proxy localhost:8000
+}
+
+# Next.js frontend — Vercel AI SDK
+next.lessch4os.com {
+	encode zstd gzip
+	reverse_proxy localhost:3000
+}
+
+# Next.js frontend — Vercel AI SDK
+datapreprocessing.lessch4os.com {
+	encode zstd gzip
+	reverse_proxy localhost:3001
+}
+
+# Mov Puente API
+movpuente.lessch4os.com {
+	encode zstd gzip
+	reverse_proxy localhost:3002
+}
