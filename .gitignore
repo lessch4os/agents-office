@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+*.swp
+.claude/settings.local.json
+/*.png
+.venv/
+.superpowers/
+.opencode/
+daemon/agents-office
+daemon/agents-office-hook
+daemon/agents-office-forwarder

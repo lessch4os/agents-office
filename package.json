@@ -1,0 +1,56 @@
+{
+  "name": "@lessch4os/agents-office",
+  "version": "0.1.0",
+  "description": "Real-time office dashboard for AI coding agents — Claude Code, OpenCode, Antigravity",
+  "type": "module",
+  "bin": {
+    "agents-office": "bin/agents-office.js",
+    "agents-office-forwarder": "bin/agents-office-forwarder.js",
+    "agents-office-hook": "bin/agents-office-hook.js"
+  },
+  "files": [
+    "bin/",
+    "daemon/src/",
+    "web/dist/"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "bun": ">=1.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lessch4os/agents-office.git"
+  },
+  "homepage": "https://agents-office.lessch4os.com",
+  "bugs": "https://github.com/lessch4os/agents-office/issues",
+  "keywords": ["agents-office", "claude-code", "opencode", "antigravity", "ai-agents", "dashboard"],
+  "license": "MIT",
+  "workspaces": ["daemon", "web"],
+  "scripts": {
+    "dev": "bash scripts/dev.sh",
+    "dev:daemon": "bun run --cwd daemon dev",
+    "dev:web": "bun run --cwd web dev",
+    "build:web": "bun run --cwd web build",
+    "build:daemon": "bun run --cwd daemon build:daemon",
+    "build:hook": "bun run --cwd daemon build:hook",
+    "build:forwarder": "bun run --cwd daemon build:forwarder",
+    "build:plugin": "bun run --cwd daemon build:plugin",
+    "build": "bun run build:hook && bun run build:forwarder && bun run build:plugin && bun run build:web",
+    "test": "bun test --cwd daemon",
+    "preflight": "bash scripts/preflight.sh",
+    "install-plugin:cc": "bash scripts/install-hooks.sh",
+    "install-plugin:oc": "bash scripts/install-opencode-plugin.sh",
+    "uninstall-plugin:cc": "bash scripts/uninstall-hooks.sh",
+    "uninstall-plugin:oc": "bash scripts/uninstall-opencode-plugin.sh",
+    "install:all": "bash scripts/install.sh",
+    "install-plugins": "bun run install-plugin:cc && bun run install-plugin:oc",
+    "install-hooks": "bun run install-plugin:cc",
+    "install-opencode": "bun run install-plugin:oc",
+    "uninstall-hooks": "bun run uninstall-plugin:cc",
+    "uninstall-opencode": "bun run uninstall-plugin:oc",
+    "prepack": "bun run build:web",
+    "prepublishOnly": "bun test --cwd daemon && bun run build:web"
+  }
+}

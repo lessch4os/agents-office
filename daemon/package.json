@@ -1,0 +1,22 @@
+{
+  "name": "agents-office-daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/main.ts",
+    "test": "bun test",
+    "build:daemon": "bun build --compile --target=bun ./src/main.ts --outfile=agents-office",
+    "build:hook": "bun build --compile --target=bun ./src/hook-shim.ts --outfile=agents-office-hook",
+    "build:forwarder": "bun build --compile --target=bun ./src/forwarder.ts --outfile=agents-office-forwarder",
+    "build:plugin": "tsc src/opencode-plugin.ts --outDir dist --module esnext --target esnext --skipLibCheck --moduleResolution bundler"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "bun-types": "^1.3.14",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "^1.15.11"
+  }
+}

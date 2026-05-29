@@ -1,0 +1,20 @@
+#!/bin/sh
+# Set pricing for a model via the daemon API.
+# Usage: ./scripts/set-pricing <model_name> <input_per_m> <output_per_m> [cache_read_per_m]
+#   cache_read_per_m defaults to 0 if omitted.
+# Example: ./scripts/set-pricing deepseek-v4-flash 0.15 0.60 0.07
+
+if [ $# -lt 3 ]; then
+  echo "Usage: $0 <model_name> <input_per_m> <output_per_m> [cache_read_per_m]" >&2
+  exit 1
+fi
+
+MODEL=$1
+INPUT=$2
+OUTPUT=$3
+CACHE=${4:-0}
+
+curl -s -X PUT "http://localhost:8080/api/pricing" \
+  -H "Content-Type: application/json" \
+  -d "$(printf '{"model_name":"%s","input_per_m":%s,"output_per_m":%s,"cache_read_per_m":%s}' "$MODEL" "$INPUT" "$OUTPUT" "$CACHE")"
+echo

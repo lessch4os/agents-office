@@ -1,0 +1,30 @@
+#!/bin/sh
+# Usage: get-logs-by-session-id <session-id>
+# Shows all daemon and plugin log entries for a given session, sorted by timestamp.
+# Token usage lines include pct=N% showing context window utilization.
+#
+# Env overrides:
+#   AGENT_OFFICE_LOG_DIR    base log dir (default: ~/.agent-office/logs)
+#   AGENT_OFFICE_DAEMON_LOG path to daemon log file
+#   AGENT_OFFICE_PLUGIN_LOG path to plugin log file
+
+SID="${1:?Usage: get-logs-by-session-id <session-id>}"
+LOG_DIR="${AGENT_OFFICE_LOG_DIR:-${HOME}/.agent-office/logs}"
+DAEMON_LOG="${AGENT_OFFICE_DAEMON_LOG:-${LOG_DIR}/daemon.log}"
+PLUGIN_LOG="${AGENT_OFFICE_PLUGIN_LOG:-${LOG_DIR}/plugin.log}"
+
+out=$(
+  {
+    [ -f "$DAEMON_LOG" ] && grep "sid=${SID}" "$DAEMON_LOG" 2>/dev/null || true
+    [ -f "$PLUGIN_LOG" ] && grep "sid=${SID}" "$PLUGIN_LOG" 2>/dev/null || true
+  } | sort
+)
+
+if [ -z "$out" ]; then
+  printf 'No logs found for session: %s\n' "$SID" >&2
+  printf '  daemon log: %s\n' "$DAEMON_LOG" >&2
+  printf '  plugin log: %s\n' "$PLUGIN_LOG" >&2
+  exit 1
+fi
+
+printf '%s\n' "$out"

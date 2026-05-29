@@ -1,0 +1,54 @@
+:root {
+  /* ── Fonts ── */
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-sans: 'Geist', 'Inter', 'SF Pro', system-ui, sans-serif;
+
+  /* ── Backgrounds ── */
+  --bg-canvas: #121318;
+  --bg-surface: #0f0f24;
+  --bg-surface-elevated: rgba(15, 15, 26, 0.97);
+  --bg-glass: rgba(20, 20, 40, 0.6);
+  --bg-glass-heavy: rgba(20, 20, 40, 0.85);
+  --bg-glass-tooltip: rgba(0, 0, 0, 0.85);
+  --bg-glass-menu: rgba(20, 20, 40, 0.95);
+
+  /* ── Text ── */
+  --text-primary: #00ff41;
+  --text-primary-dim: #00e55b;
+  --text-secondary: #00e5ff;
+  --text-tertiary: #e5c500;
+  --text-error: #ff4d4d;
+  --text-on-surface: #ccc;
+  --text-on-surface-dim: #888;
+  --text-on-surface-muted: #666;
+  --text-on-surface-subtle: #555;
+  --text-on-surface-faint: #444;
+  --text-on-surface-bright: #aaa;
+
+  /* ── Borders ── */
+  --border-primary: #00ff41;
+  --border-secondary: #00e5ff;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.12);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  --border-filter-active: rgba(68, 255, 68, 0.3);
+  --border-filter-inactive: rgba(255, 255, 255, 0.08);
+
+  /* ── Backgrounds for filter/button states ── */
+  --bg-filter-active: rgba(68, 255, 68, 0.15);
+
+  /* ── Shadows ── */
+  --shadow-menu: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.6);
+
+  /* ── Z-index layers ── */
+  --z-pet: 9999;
+  --z-tooltip: 10000;
+  --z-context-menu: 10001;
+  --z-modal: 10002;
+
+  /* ── Layout ── */
+  --sidebar-width: 320px;
+  --transition-fast: 0.15s;
+  --transition-normal: 0.2s;
+}
