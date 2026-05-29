@@ -191,29 +191,51 @@ async function runInstall(): Promise<void> {
   Bun.spawnSync(["mkdir", "-p", agentDir]);
   Bun.spawnSync(["mkdir", "-p", `${home}/.config/opencode/plugins`]);
 
-  // Find our own binary location
   const selfPath = process.argv[1] ?? "";
-  const repoDir = selfPath.includes("main.ts")
-    ? selfPath.replace("/daemon/src/main.ts", "")
-    : selfPath.replace("/agents-office", "");
+  const isCompiled = !selfPath.includes("main.ts");
+  const selfDir = isCompiled ? dirname(selfPath) : "";
+  const repoDir = isCompiled
+    ? ""
+    : selfPath.replace("/daemon/src/main.ts", "");
 
-  const hookBin = `${repoDir}/daemon/agents-office-hook`;
-  const pluginSrc = `${repoDir}/daemon/dist/opencode-plugin.js`;
+  // Compute paths for source vs Homebrew binary layout
+  const hookBin = isCompiled
+    ? `${selfDir}/agents-office-hook`
+    : `${repoDir}/daemon/agents-office-hook`;
+  const pluginSrc = isCompiled
+    ? `${selfDir}/../share/agents-office/opencode-plugin.js`
+    : `${repoDir}/daemon/dist/opencode-plugin.js`;
+  const scriptsDir = isCompiled ? "" : `${repoDir}/scripts`;
 
-  if (hookBin) {
+  if (isCompiled) {
+    // Homebrew / compiled binary — no source tree; print instructions
+    console.log("agents-office is installed via a compiled binary (e.g. Homebrew).");
+    console.log("");
+    console.log("To install Claude Code hooks, add to ~/.claude/settings.json:");
+    console.log(`  {`);
+    console.log(`    "hooks": {`);
+    console.log(`      "SessionStart": [{ "_agents_office": true, "hooks": [{ "command": "${hookBin}", "type": "command" }], "matcher": ".*" }],`);
+    console.log(`      "SessionEnd":   [{ "_agents_office": true, "hooks": [{ "command": "${hookBin}", "type": "command" }], "matcher": ".*" }],`);
+    console.log(`      "PreToolUse":   [{ "_agents_office": true, "hooks": [{ "command": "${hookBin}", "type": "command" }], "matcher": ".*" }],`);
+    console.log(`      "PostToolUse":  [{ "_agents_office": true, "hooks": [{ "command": "${hookBin}", "type": "command" }], "matcher": ".*" }],`);
+    console.log(`      "Notification": [{ "_agents_office": true, "hooks": [{ "command": "${hookBin}", "type": "command" }], "matcher": ".*" }]`);
+    console.log(`    }`);
+    console.log(`  }`);
+    console.log("");
+    console.log("To install OpenCode plugin:");
+    console.log(`  ln -sf ${pluginSrc} ${home}/.config/opencode/plugins/agents-office.js`);
+  } else {
+    // Source install — run install scripts
     console.log(`installing hook: ${hookBin}`);
-    const r = Bun.spawnSync(["bash", `${repoDir}/scripts/install-hooks.sh`], { cwd: repoDir });
+    const r = Bun.spawnSync(["bash", `${scriptsDir}/install-hooks.sh`], { cwd: repoDir });
     if (r.exitCode !== 0) console.warn("hook install failed (non-fatal)");
-  }
-  if (pluginSrc) {
+
     console.log(`installing OC plugin: ${pluginSrc}`);
-    const r = Bun.spawnSync(["bash", `${repoDir}/scripts/install-opencode-plugin.sh`], { cwd: repoDir });
-    if (r.exitCode !== 0) console.warn("OC plugin install failed (non-fatal)");
+    const r2 = Bun.spawnSync(["bash", `${scriptsDir}/install-opencode-plugin.sh`], { cwd: repoDir });
+    if (r2.exitCode !== 0) console.warn("OC plugin install failed (non-fatal)");
   }
 
-  console.log("agents-office: install complete");
-  console.log("  hooks: ~/.claude/settings.json");
-  console.log("  opencode plugin: ~/.config/opencode/plugins/agents-office.js");
+  console.log("");
   console.log("  data dir: ~/.agents-office/");
   console.log("Restart Claude Code / OpenCode to activate.");
 }
