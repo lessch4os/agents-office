@@ -9,6 +9,14 @@ export function connectWebSocket(onScene: SceneCallback, onLog?: LogCallback): (
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
+  async function ensureAuthed(): Promise<boolean> {
+    try {
+      const res = await fetch("/api/sessions")
+      if (res.status === 401) { window.location.href = "/login"; return false }
+      return true
+    } catch { return true }
+  }
+
   function connect() {
     ws = new WebSocket(url)
 
@@ -41,7 +49,7 @@ export function connectWebSocket(onScene: SceneCallback, onLog?: LogCallback): (
     }
   }
 
-  connect()
+  ensureAuthed().then((authed) => { if (authed) connect() })
 
   return () => {
     if (reconnectTimer) clearTimeout(reconnectTimer)
