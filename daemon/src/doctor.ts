@@ -46,6 +46,17 @@ function pgrep(name: string, exact = true): number | null {
   return null;
 }
 
+function pgrepAll(name: string, exact = true): number[] {
+  try {
+    const args = exact ? ["pgrep", "-x", name] : ["pgrep", "-f", name];
+    const r = Bun.spawnSync(args);
+    if (r.exitCode === 0) {
+      return r.stdout.toString().trim().split("\n").filter(Boolean).map(Number);
+    }
+  } catch {}
+  return [];
+}
+
 function pidof(name: string): number | null {
   try {
     const r = Bun.spawnSync(["pidof", name]);
@@ -74,8 +85,16 @@ function findDaemonPid(): { pid: number | null; method: string } {
   let pid = findPid("agents-office");
   if (pid) return { pid, method: "process" };
   // Broader match: bun x @lessch4os/agents-office, npx, etc.
-  pid = pgrep("agents-office", false);
-  if (pid) return { pid, method: "cmdline" };
+  // Exclude forwarder and hook subprocesses
+  const allPids = pgrepAll("agents-office", false);
+  for (const p of allPids) {
+    try {
+      const cmdline = Bun.spawnSync(["ps", "-p", String(p), "-o", "comm="]);
+      const comm = cmdline.stdout.toString().trim();
+      if (comm.includes("agents-office-forwarder") || comm.includes("agents-office-hook")) continue;
+      return { pid: p, method: "cmdline" };
+    } catch {}
+  }
   // systemd service
   if (findDaemonPidInSystemd()) return { pid: 0, method: "systemd" };
   return { pid: null, method: "none" };
@@ -136,8 +155,10 @@ function currentPlatformTag(): string {
 }
 
 function platformBinaryPath(name: string): string {
+  // Try brew opt path first (macOS)
+  const brewPath = `/opt/homebrew/opt/${name}/bin/${name}`;
+  if (fs.existsSync(brewPath)) return brewPath;
   // Try: daemon/agents-office-{os}-{arch} (platform-specific compile)
-  // Then: daemon/agents-office (platform-agnostic compile / brew)
   const tagged = `${name}-${currentPlatformTag()}`;
   const daemonDir = path.join(path.dirname(process.argv[1] ?? ""), "..", "daemon");
   if (fs.existsSync(path.join(daemonDir, tagged))) return path.join(daemonDir, tagged);
@@ -215,7 +236,10 @@ async function checkBinaryVersions(): Promise<CheckResult> {
       found.push(name);
       try {
         const r = Bun.spawnSync([cmd, "--version"]);
-        if (r.exitCode === 0) versions.add(r.stdout.toString().trim());
+        if (r.exitCode === 0) {
+          const v = r.stdout.toString().trim();
+          if (v.length > 0) versions.add(v);
+        }
       } catch {
         versions.add("?");
       }
@@ -310,28 +334,28 @@ async function checkSocketConflict(): Promise<CheckResult> {
     return { name: "socket-conflict", status: "skip", message: "neither daemon nor forwarder running" };
   }
 
-  const actualSockets = findActualSockets();
+  // Only check the daemon socket path — forwarder owning its own socket is expected
+  const daemonSocket = resolveDaemonSocket();
+  if (!fs.existsSync(daemonSocket)) {
+    return { name: "socket-conflict", status: "ok", message: "daemon socket not found — no conflict" };
+  }
 
-  // Check all found sockets for ownership
-  for (const sockPath of actualSockets) {
-    const entry = lsof(sockPath);
-    if (entry.length === 0) continue;
-    const parsed = parseLsof(entry);
-    const procs = parsed.map((p) => p.command);
-    const hasDaemon = procs.some((c) => c === "agents-office" || c === "bun");
-    const hasForwarder = procs.some((c) => c === "agents-office-forwarder");
+  const entry = lsof(daemonSocket);
+  if (entry.length === 0) {
+    return { name: "socket-conflict", status: "ok", message: "no conflict detected" };
+  }
 
-    if (hasDaemon && hasForwarder) {
-      return { name: "socket-conflict", status: "fail", message: `both daemon and forwarder use ${sockPath} — events may be lost` };
-    }
+  const parsed = parseLsof(entry);
+  const procs = parsed.map((p) => p.command);
+  const hasDaemon = procs.some((c) => c === "agents-office" || c === "bun");
+  const hasForwarder = procs.some((c) => c === "agents-office-forwarder");
 
-    // If daemon is running but socket owned by someone else
-    if (daemonRunning && !hasDaemon && parsed.length > 0) {
-      const owner = parsed[0]!.command;
-      if (owner !== "agents-office" && owner !== "bun") {
-        return { name: "socket-conflict", status: "warn", message: `${owner} owns socket ${sockPath}, not agents-office` };
-      }
-    }
+  if (hasDaemon && hasForwarder) {
+    return { name: "socket-conflict", status: "fail", message: `both daemon and forwarder use ${daemonSocket} — events may be lost` };
+  }
+
+  if (hasForwarder && !hasDaemon) {
+    return { name: "socket-conflict", status: "warn", message: `forwarder owns daemon socket ${daemonSocket}` };
   }
 
   return { name: "socket-conflict", status: "ok", message: "no conflict detected" };

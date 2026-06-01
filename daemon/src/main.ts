@@ -219,7 +219,16 @@ async function runInstall(): Promise<void> {
   }
 
   const hookBin = isCompiled ? await findInPath("agents-office-hook") : `${repoDir}/daemon/agents-office-hook`;
-  const pluginSrc = isCompiled ? await findInPath("opencode-plugin.js") ?? `${home}/.config/opencode/plugins/agents-office.js` : `${repoDir}/daemon/dist/opencode-plugin.js`;
+  const pluginSrc = isCompiled
+    ? await findInPath("opencode-plugin.js")
+      ?? (await (async () => {
+        // Common Homebrew plugin path
+        const brewPlugin = "/opt/homebrew/opt/agents-office/share/agents-office/opencode-plugin.js";
+        try { const f = Bun.file(brewPlugin); if ((await f.stat()).isFile) return brewPlugin; } catch {}
+        return null;
+      })())
+      ?? `${home}/.config/opencode/plugins/agents-office.js`
+    : `${repoDir}/daemon/dist/opencode-plugin.js`;
 
   if (!hookBin && isCompiled) {
     console.error("agents-office-hook not found in PATH or common Homebrew directories.");
