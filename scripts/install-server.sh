@@ -13,7 +13,7 @@ ok()    { printf "${GREEN}  ✓${NC} %s\n" "$*" >&2; }
 fail()  { printf "${RED}  ✗${NC} %s\n" "$*" >&2; exit 1; }
 
 SERVER_HOSTNAME="${SERVER_HOSTNAME:-agents-office.lessch4os.com}"
-VERSION="${VERSION:-0.1.18}"
+VERSION="${VERSION:-0.1.19}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CFG_DIR="$HOME/.agents-office"
 
