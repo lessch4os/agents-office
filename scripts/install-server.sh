@@ -13,7 +13,7 @@ ok()    { printf "${GREEN}  ✓${NC} %s\n" "$*" >&2; }
 fail()  { printf "${RED}  ✗${NC} %s\n" "$*" >&2; exit 1; }
 
 SERVER_HOSTNAME="${SERVER_HOSTNAME:-agents-office.lessch4os.com}"
-VERSION="${VERSION:-0.1.20}"
+VERSION="${VERSION:-0.1.21}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CFG_DIR="$HOME/.agents-office"
 
@@ -41,11 +41,13 @@ step "downloading ${BINARY_NAME} v${VERSION}..."
 mkdir -p "$INSTALL_DIR"
 
 if command -v curl &>/dev/null; then
+  rm -f "$INSTALL_DIR/agents-office"
   curl -fsSL "$BINARY_URL" -o "$INSTALL_DIR/agents-office" || {
     ok "binary download failed — falling back to npm+bun"
     USE_BUN=1
   }
 elif command -v wget &>/dev/null; then
+  rm -f "$INSTALL_DIR/agents-office"
   wget -q "$BINARY_URL" -O "$INSTALL_DIR/agents-office" || {
     ok "binary download failed — falling back to npm+bun"
     USE_BUN=1

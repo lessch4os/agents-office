@@ -1,7 +1,7 @@
 import * as net from "net";
 import * as os from "os";
 
-const VERSION = "0.1.20";
+const VERSION = "0.1.21";
 
 interface Config {
   serverUrl: string;
