@@ -6,7 +6,7 @@
       "name": "ascii-agents",
     },
     "daemon": {
-      "name": "agent-office-daemon",
+      "name": "agents-office-daemon",
       "version": "0.1.0",
       "dependencies": {
         "@opencode-ai/sdk": "^1.15.11",
@@ -18,7 +18,7 @@
       },
     },
     "web": {
-      "name": "agent-office-web",
+      "name": "agents-office-web",
       "version": "0.1.0",
       "dependencies": {
         "pixi.js": "8",
@@ -215,9 +215,9 @@
 
     "@xmldom/xmldom": ["@xmldom/xmldom@0.8.13", "", {}, "sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw=="],
 
-    "agent-office-daemon": ["agent-office-daemon@workspace:daemon"],
+    "agents-office-daemon": ["agents-office-daemon@workspace:daemon"],
 
-    "agent-office-web": ["agent-office-web@workspace:web"],
+    "agents-office-web": ["agents-office-web@workspace:web"],
 
     "baseline-browser-mapping": ["baseline-browser-mapping@2.10.32", "", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-wbPvpyjJPC0zdfdKXxqEL3Ea+bOMD/87X4lftiJkkaBiuG6ALQy1SLmEd7BSmVCuwCQsBrCamgBoLyfFDD1EPg=="],
 
