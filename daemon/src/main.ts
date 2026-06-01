@@ -219,6 +219,11 @@ async function runInstall(): Promise<void> {
   }
 
   const hookBin = isCompiled ? await findInPath("agents-office-hook") : `${repoDir}/daemon/agents-office-hook`;
+
+  function hooksExist(path: string): boolean {
+    try { return Bun.file(path).exists(); } catch { return false; }
+  }
+
   const pluginSrc = isCompiled
     ? await findInPath("opencode-plugin.js")
       ?? (await (async () => {
@@ -285,17 +290,16 @@ async function runInstall(): Promise<void> {
   }
 
   // ── Execute ────────────────────────────────────────────────────
-  if (!isCompiled) {
-    // Source install — use scripts
-    const hb = hookBin as string;
-    const ps = pluginSrc as string;
-    console.log(`installing hook: ${hb}`);
+  if (!isCompiled && repoDir && hookBin && hooksExist(hookBin)) {
+    // Source install with local hooks — use scripts
+    console.log(`installing hook: ${hookBin}`);
     const r = Bun.spawnSync(["bash", `${scriptsDir}/install-hooks.sh`], { cwd: repoDir });
     if (r.exitCode !== 0) console.warn("hook install failed (non-fatal)");
-    console.log(`installing OC plugin: ${ps}`);
+    console.log(`installing OC plugin: ${pluginSrc}`);
     const r2 = Bun.spawnSync(["bash", `${scriptsDir}/install-opencode-plugin.sh`], { cwd: repoDir });
     if (r2.exitCode !== 0) console.warn("OC plugin install failed (non-fatal)");
   } else {
+    // Compiled binary or source-without-local-build — use direct approach
     await installCcHooks();
     await installOcPlugin();
   }

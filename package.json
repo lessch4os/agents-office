@@ -12,9 +12,6 @@
     "bin/",
     "daemon/src/",
     "daemon/dist/",
-    "daemon/agents-office*",
-    "daemon/agents-office-hook*",
-    "daemon/agents-office-forwarder*",
     "daemon/package.json",
     "daemon/tsconfig.json",
     "web/dist/"
@@ -67,7 +64,7 @@
     "install-opencode": "bun run install-plugin:oc",
     "uninstall-hooks": "bun run uninstall-plugin:cc",
     "uninstall-opencode": "bun run uninstall-plugin:oc",
-    "prepack": "bun run build:plugin && bun run build:hook && bun run build:forwarder && bun run build:daemon && bun run build:web",
-    "prepublishOnly": "bun test --cwd daemon && bun run build:plugin && bun run build:hook && bun run build:forwarder && bun run build:daemon && bun run build:web"
+    "prepack": "bun run build:plugin && bun run build:web",
+    "prepublishOnly": "bun test --cwd daemon && bun run build:plugin && bun run build:web"
   }
 }
