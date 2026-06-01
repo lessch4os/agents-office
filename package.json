@@ -1,6 +1,6 @@
 {
   "name": "@lessch4os/agents-office",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "Real-time office dashboard for AI coding agents — Claude Code, OpenCode, Antigravity",
   "type": "module",
   "bin": {
