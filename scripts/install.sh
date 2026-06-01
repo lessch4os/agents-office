@@ -4,18 +4,27 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "==> agents-office installer"
+ARCH="$(uname -m)"
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+case "$ARCH" in
+  x86_64|amd64) BARCH="x64" ;;
+  aarch64|arm64) BARCH="arm64" ;;
+  *) BARCH="$ARCH" ;;
+esac
+PLATFORM="${OS}-${BARCH}"
+
+echo "==> agents-office installer (${PLATFORM})"
 echo ""
 
-# Build everything
-echo "==> Building daemon..."
-bun run --cwd "$REPO_DIR/daemon" build:daemon
+# Build everything for this platform
+echo "==> Building daemon for ${PLATFORM}..."
+bun run --cwd "$REPO_DIR/daemon" "build:daemon:${PLATFORM}"
 
-echo "==> Building hook..."
-bun run --cwd "$REPO_DIR/daemon" build:hook
+echo "==> Building hook for ${PLATFORM}..."
+bun run --cwd "$REPO_DIR/daemon" "build:hook:${PLATFORM}"
 
-echo "==> Building forwarder (client relay)..."
-bun run --cwd "$REPO_DIR/daemon" build:forwarder
+echo "==> Building forwarder for ${PLATFORM}..."
+bun run --cwd "$REPO_DIR/daemon" "build:forwarder:${PLATFORM}"
 
 echo "==> Building plugin..."
 bun run --cwd "$REPO_DIR/daemon" build:plugin
@@ -30,8 +39,16 @@ bash "$REPO_DIR/scripts/install-hooks.sh"
 echo "==> Installing OpenCode plugin..."
 bash "$REPO_DIR/scripts/install-opencode-plugin.sh"
 
+# Symlink platform-specific binary as default
+echo "==> Creating default binary symlink..."
+ln -sf "$REPO_DIR/daemon/agents-office-${PLATFORM}" "$REPO_DIR/daemon/agents-office"
+ln -sf "$REPO_DIR/daemon/agents-office-hook-${PLATFORM}" "$REPO_DIR/daemon/agents-office-hook"
+ln -sf "$REPO_DIR/daemon/agents-office-forwarder-${PLATFORM}" "$REPO_DIR/daemon/agents-office-forwarder"
+
 echo ""
 echo "==> Done!"
+echo ""
+echo "  Platform: ${PLATFORM}"
 echo ""
 echo "  SERVER (VPS):"
 echo "    ./daemon/agents-office --port 8080 --password secret"

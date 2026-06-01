@@ -14,7 +14,7 @@ import { PricingManager } from "./pricing";
 import { EmitManager } from "./emitter";
 import { decodeHookPayload } from "./decoder";
 
-const VERSION = "0.1.16";
+const VERSION = "0.1.17";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ─────────────────────────────────────────────────────────
@@ -162,6 +162,8 @@ function printUsage(): void {
   console.log("  --max-desks <n>       Number of agent desks (default: 16)");
   console.log("  --db <path>           SQLite database path");
   console.log("  --install             Install hooks + OC plugin then exit");
+  console.log("  --doctor              Run diagnostics and exit");
+  console.log("  --reload              Gracefully restart CC/OC + daemon");
   console.log("  --verbose, -v         Verbose logging");
   console.log("  --version             Print version and exit");
   console.log("  --help                Print this help and exit");
@@ -176,6 +178,16 @@ async function main() {
   if (args.includes("--help") || args.includes("-h")) {
     printUsage();
     process.exit(0);
+  }
+  if (args.includes("--doctor") || args[0] === "doctor") {
+    const { runDoctor } = await import("./doctor");
+    await runDoctor(args.slice(1));
+    return;
+  }
+  if (args.includes("--reload") || args[0] === "reload") {
+    const { runReload } = await import("./reloader");
+    await runReload(args.slice(1));
+    return;
   }
   if (args.includes("--install") || args.includes("install")) {
     await runInstall();

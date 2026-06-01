@@ -110,6 +110,8 @@ curl -fsSL https://raw.githubusercontent.com/lessch4os/agents-office/main/script
 | `--db <path>` | `~/.agents-office/sessions.db` | SQLite database path |
 | `--verbose`, `-v` | — | Verbose logging |
 | `--install` | — | Install hooks + OC plugin then exit |
+| `--doctor` | — | Run diagnostics and exit |
+| `--reload` | — | Gracefully restart CC/OC + daemon |
 
 Example — server mode with auth:
 ```bash
@@ -162,10 +164,35 @@ npx @lessch4os/agents-office install-opencode   # OC plugin
 # Or both at once:
 npx @lessch4os/agents-office install
 
+# Then reload to apply hooks gracefully:
+agents-office reload
+
 # Then run forwarder to relay to server:
 npx @lessch4os/agents-office forwarder \
   --server wss://your-server/hook --password <your-password>
 ```
+
+### Doctor (diagnostics)
+
+Run diagnostics to check your setup:
+
+```bash
+agents-office doctor
+```
+
+Checks binary versions, running processes, Unix socket, CC hooks, OC plugin, port, database, logs, and remote server config. Exits with code 1 on failures.
+
+### Reload (graceful restart)
+
+Gracefully restart Claude Code, OpenCode, and the agents-office daemon:
+
+```bash
+agents-office reload              # restart CC + OC + daemon
+agents-office reload --daemon-only  # restart daemon only
+agents-office reload --agents-only  # restart CC/OC only
+```
+
+Sends SIGINT to CC/OC (preserving session state) and restarts the daemon via systemd or SIGHUP.
 
 ## Uninstall
 

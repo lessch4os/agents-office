@@ -3,6 +3,7 @@ name: ci
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
 
 concurrency:
@@ -20,3 +21,46 @@ jobs:
       - run: bun test --cwd daemon
       - run: bun run --cwd daemon build:forwarder
       - run: bun run build:web
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ci]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      # Build all 12 platform binaries
+      - run: bun run build:daemon:linux-x64
+      - run: bun run build:daemon:linux-arm64
+      - run: bun run build:daemon:darwin-x64
+      - run: bun run build:daemon:darwin-arm64
+      - run: bun run build:hook:linux-x64
+      - run: bun run build:hook:linux-arm64
+      - run: bun run build:hook:darwin-x64
+      - run: bun run build:hook:darwin-arm64
+      - run: bun run build:forwarder:linux-x64
+      - run: bun run build:forwarder:linux-arm64
+      - run: bun run build:forwarder:darwin-x64
+      - run: bun run build:forwarder:darwin-arm64
+      - run: bun run build:plugin
+
+      # Build .deb from linux-x64 binary
+      - run: bash scripts/make-deb.sh daemon/agents-office-linux-x64 ${GITHUB_REF_NAME#v}
+
+      # Build web frontend for npm package
+      - run: bun run build:web
+
+      # Create GitHub Release with all assets
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            daemon/agents-office-*
+            agents-office_*.deb
+          generate_release_notes: true
+
+      # Publish to npm
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

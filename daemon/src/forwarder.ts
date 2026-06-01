@@ -1,7 +1,7 @@
 import * as net from "net";
 import * as os from "os";
 
-const VERSION = "0.1.16";
+const VERSION = "0.1.17";
 
 interface Config {
   serverUrl: string;
@@ -43,7 +43,7 @@ function loadConfig(): Config | null {
 function resolveSocketPath(): string {
   if (process.env.AGENTS_OFFICE_SOCKET) return process.env.AGENTS_OFFICE_SOCKET;
   if (process.env.XDG_RUNTIME_DIR) return `${process.env.XDG_RUNTIME_DIR}/agents-office.sock`;
-  return `/tmp/agents-office-${process.getuid?.() ?? 0}.sock`;
+  return `/tmp/agents-office-forwarder-${process.getuid?.() ?? 0}.sock`;
 }
 
 const args = process.argv.slice(2);

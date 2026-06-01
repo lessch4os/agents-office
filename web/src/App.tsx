@@ -5,16 +5,18 @@ import { OfficePixi as Office } from "./components/OfficePixi"
 import { ActivityFeed } from "./components/ActivityFeed"
 import { HistoryPage } from "./components/HistoryPage"
 import { PricingPage } from "./components/PricingPage"
+import InstallPage from "./components/InstallPage"
 import { OfficeStatsHud } from "./components/OfficeStatsHud"
 import { ContextMeterHud } from "./components/ContextMeterHud"
 import { setLiveAgentsCache } from "./liveAgentsCache"
 import { fetchPricing } from "./pricing"
 
-type Page = "office" | "history" | "pricing"
+type Page = "office" | "history" | "pricing" | "install"
 
 function parseHashPage(): Page {
   if (window.location.hash.startsWith("#/history")) return "history"
   if (window.location.hash.startsWith("#/pricing")) return "pricing"
+  if (window.location.hash.startsWith("#/install")) return "install"
   return "office"
 }
 
@@ -53,7 +55,7 @@ export default function App() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.key === "h") toggleLogs()
       if (e.key === "c") toggleHuds()
-      if (e.key === "Escape" && (page === "history" || page === "pricing")) {
+      if (e.key === "Escape" && (page === "history" || page === "pricing" || page === "install")) {
         window.location.hash = "/office"
       }
     }
@@ -89,6 +91,7 @@ export default function App() {
   useEffect(() => {
     if (page === "office") window.location.hash = "/office"
     else if (page === "pricing") window.location.hash = "/pricing"
+    else if (page === "install") window.location.hash = "/install"
   }, [page])
 
   const agentCount = scene ? Object.keys(scene.agents).length : 0
@@ -173,6 +176,22 @@ export default function App() {
           >
             Pricing
           </button>
+          <button
+            onClick={() => setPage("install")}
+            style={{
+              background: "none",
+              border: "none",
+              borderBottom: page === "install" ? "2px solid var(--border-primary)" : "2px solid transparent",
+              color: page === "install" ? "var(--text-primary)" : "var(--text-on-surface-subtle)",
+              cursor: "pointer",
+              fontFamily: "var(--font-mono)",
+              fontSize: 12,
+              padding: "6px 14px",
+              transition: "color var(--transition-fast), border-color var(--transition-fast)",
+            }}
+          >
+            Install
+          </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button
@@ -247,6 +266,7 @@ export default function App() {
 
       {page === "history" && <HistoryPage />}
       {page === "pricing" && <PricingPage />}
+      {page === "install" && <InstallPage />}
     </div>
   )
 }

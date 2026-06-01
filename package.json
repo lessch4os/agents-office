@@ -1,12 +1,12 @@
 {
   "name": "@lessch4os/agents-office",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Real-time office dashboard for AI coding agents — Claude Code, OpenCode, Antigravity",
   "type": "module",
   "bin": {
-    "agents-office": "bin/cli.cjs",
-    "agents-office-forwarder": "bin/agents-office-forwarder.js",
-    "agents-office-hook": "bin/agents-office-hook.js"
+    "agents-office": "bin/agents-office",
+    "agents-office-forwarder": "bin/agents-office-forwarder",
+    "agents-office-hook": "bin/agents-office-hook"
   },
   "files": [
     "bin/",
@@ -49,6 +49,7 @@
     "build:hook": "bun run --cwd daemon build:hook",
     "build:forwarder": "bun run --cwd daemon build:forwarder",
     "build:plugin": "bun run --cwd daemon build:plugin",
+    "build:local": "bash scripts/build-local.sh",
     "build": "bun run build:hook && bun run build:forwarder && bun run build:plugin && bun run build:web",
     "test": "bun test --cwd daemon",
     "preflight": "bash scripts/preflight.sh",

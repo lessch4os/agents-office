@@ -88,5 +88,14 @@ fs.renameSync(tmp, settingsPath);
 console.log('  wrote hook entries to ' + settingsPath);
 "
 
+echo ""
+if pgrep -f "claude" &>/dev/null; then
+  echo "  ⚠  Claude Code is running — hooks won't take effect until restart."
+  echo "     To reload gracefully without losing work:"
+  echo "       agents-office reload"
+  echo "     Then start CC again:"
+  echo "       claude"
+  echo ""
+fi
+
 echo "==> Done. Hook registered: $HOOK_BIN"
-echo "==> Restart Claude Code for changes to take effect."

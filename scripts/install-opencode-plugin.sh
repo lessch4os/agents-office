@@ -29,4 +29,14 @@ fi
 ln -sf "$PLUGIN_SRC" "$TARGET"
 echo "  linked $PLUGIN_SRC -> $TARGET"
 
+echo ""
+if pgrep -f "opencode" &>/dev/null; then
+  echo "  ⚠  OpenCode is running — plugin won't take effect until restart."
+  echo "     To reload gracefully without losing work:"
+  echo "       agents-office reload"
+  echo "     Then start OC again:"
+  echo "       opencode"
+  echo ""
+fi
+
 echo "==> Done. Restart OpenCode for the plugin to take effect."

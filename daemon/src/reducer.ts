@@ -365,7 +365,7 @@ export class Reducer {
     this.sweepStale(scene, now);
   }
 
-  apply(scene: SceneState, event: AgentEvent, now: number, from: Transport): void {
+  apply(scene: SceneState, event: AgentEvent, now: number, from: Transport): boolean {
     this.gc(now);
     this.sweepExited(scene, now);
     this.expirePendingIdles(scene, now);
@@ -382,7 +382,7 @@ export class Reducer {
 
     // Transport strategy: drop / prelude
     const strategy = transportStrategies[from];
-    if (strategy.shouldDrop(event, scene, ctx)) return;
+    if (strategy.shouldDrop(event, scene, ctx)) return false;
 
     const slot = scene.agents.get(idKey) ?? null;
     strategy.onBeforeApply(event, slot, ctx);
@@ -395,6 +395,7 @@ export class Reducer {
     if (handler) {
       handler.apply(slot, event, scene, ctx);
     }
+    return true;
   }
 
   // ── GC: purge old hook-wins entries ──────────────────────────────

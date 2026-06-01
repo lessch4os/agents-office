@@ -269,7 +269,8 @@ export class SessionStore {
       const sessionId = row["session_id"] as string;
       const source = row["source"] as string;
       const agentType = (row["agent_type"] as string | null) ?? null;
-      const agentId = AgentId.fromParts(source, sessionId);
+      const agentIdHex = row["agent_id"] as string;
+      const agentId = AgentId.fromHex(agentIdHex);
       const cwd = row["cwd"] as string ?? "";
       const contextWindowLimit = (row["context_window_limit"] as number) ?? 0;
       const label = row["label"] as string ?? "";

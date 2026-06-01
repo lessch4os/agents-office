@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# agents-office-forwarder wrapper — auto-detect platform binary, fallback to bun
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ARCH="$(uname -m)"
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+
+case "$ARCH" in
+  x86_64|amd64) BARCH="x64" ;;
+  aarch64|arm64) BARCH="arm64" ;;
+  *) echo "agents-office-forwarder: unsupported arch: $ARCH" >&2; exit 1 ;;
+esac
+
+BINARY_DIR="$SCRIPT_DIR/../daemon"
+BINARY="$BINARY_DIR/agents-office-forwarder-${OS}-${BARCH}"
+
+if [ -x "$BINARY" ]; then
+  exec "$BINARY" "$@"
+fi
+
+# Fallback: try platform-agnostic binary (brew installs)
+if [ -x "$BINARY_DIR/agents-office-forwarder" ]; then
+  exec "$BINARY_DIR/agents-office-forwarder" "$@"
+fi
+
+# Fallback: bun run from source
+if command -v bun &>/dev/null; then
+  exec bun run "$BINARY_DIR/src/forwarder.ts" "$@"
+fi
+
+echo "agents-office-forwarder: binary not found for ${OS}-${BARCH} and bun not installed" >&2
+echo "  Install: npm install -g @lessch4os/agents-office" >&2
+exit 1

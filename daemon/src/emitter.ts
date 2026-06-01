@@ -24,7 +24,7 @@ export class EmitManager {
     const idNum = event.agentId.toNumber();
     const sid = event.type === "sessionStart" ? ` session=${event.sessionId}` : "";
     this.log.verbose(`[emit] ${transport} ${event.type} id=${idNum}${sid}`);
-    this.reducer.apply(this.scene, event, now, transport);
+    const applied = this.reducer.apply(this.scene, event, now, transport);
 
     if (this.store) {
       this.store.onEvent(event, this.scene.agents.get(event.agentId.value), now, this.scene.agents);
@@ -51,6 +51,8 @@ export class EmitManager {
       }
       this.fileLog(`daemon transport=${transport} type=${event.type} agent=${event.agentId.toString()} sid=${sessionId}${extra}`);
     }
+
+    if (!applied) return;
 
     if (event.type === "activityStart") {
       this.toolStartTimes.set(idNum, now);

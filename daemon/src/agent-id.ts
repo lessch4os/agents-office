@@ -23,6 +23,10 @@ export class AgentId {
     return new AgentId(hash);
   }
 
+  static fromHex(hex: string): AgentId {
+    return new AgentId(BigInt(`0x${hex}`));
+  }
+
   static fromTranscriptPath(path: string): AgentId {
     return AgentId.fromParts("claude-code", path);
   }
