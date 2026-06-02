@@ -4,6 +4,7 @@ import { resolve } from "path";
 
 const PORT = 23457;
 const HEALTH_URL = `http://127.0.0.1:${PORT}/health`;
+const LOGIN_URL = `http://127.0.0.1:${PORT}/login`;
 const DAEMON_SCRIPT = resolve(import.meta.dir, "main.ts");
 const WEB_ROOT = resolve(import.meta.dir, "../../web/dist");
 
@@ -11,7 +12,6 @@ let proc: import("bun").Subprocess | null = null;
 let webRootFound = false;
 
 beforeAll(async () => {
-  // Check if web dist exists before starting daemon
   try {
     const f = Bun.file(`${WEB_ROOT}/index.html`);
     webRootFound = (await f.stat()).isFile;
@@ -45,16 +45,17 @@ test("daemon responds to /health", async () => {
   expect(body.trim()).toBe("ok");
 });
 
-test("daemon serves index.html", async () => {
-  if (!webRootFound) return;
-  const r = await fetch(`http://127.0.0.1:${PORT}/`);
+test("daemon serves login page (built-in, no web-root needed)", async () => {
+  const r = await fetch(LOGIN_URL);
   expect(r.ok).toBe(true);
   const body = await r.text();
   expect(body).toContain("<!DOCTYPE html>");
 });
 
-test("daemon websocket endpoint returns a response", async () => {
+test("daemon serves index.html from web-root", async () => {
   if (!webRootFound) return;
-  const r = await fetch(`http://127.0.0.1:${PORT}/ws`);
+  const r = await fetch(`http://127.0.0.1:${PORT}/`);
   expect(r.ok).toBe(true);
+  const body = await r.text();
+  expect(body).toContain("<!DOCTYPE html>");
 });
