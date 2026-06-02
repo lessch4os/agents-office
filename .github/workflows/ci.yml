@@ -34,7 +34,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
 
-      # Build all 12 platform binaries
+      # Build all 8 platform binaries (daemon + hook × 4 architectures)
       - run: bun run --cwd daemon build:daemon:linux-x64
       - run: bun run --cwd daemon build:daemon:linux-arm64
       - run: bun run --cwd daemon build:daemon:darwin-x64
@@ -43,10 +43,6 @@ jobs:
       - run: bun run --cwd daemon build:hook:linux-arm64
       - run: bun run --cwd daemon build:hook:darwin-x64
       - run: bun run --cwd daemon build:hook:darwin-arm64
-      - run: bun run --cwd daemon build:forwarder:linux-x64
-      - run: bun run --cwd daemon build:forwarder:linux-arm64
-      - run: bun run --cwd daemon build:forwarder:darwin-x64
-      - run: bun run --cwd daemon build:forwarder:darwin-arm64
       - run: bun run --cwd daemon build:plugin
 
       # Build .deb from linux-x64 binary

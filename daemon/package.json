@@ -8,7 +8,6 @@
     "test": "bun test",
     "build:daemon": "bun build --compile --target=bun ./src/main.ts --outfile=agents-office",
     "build:hook": "bun build --compile --target=bun ./src/hook-shim.ts --outfile=agents-office-hook",
-    "build:forwarder": "bun build --compile --target=bun ./src/forwarder.ts --outfile=agents-office-forwarder",
     "build:plugin": "tsc src/opencode-plugin.ts --outDir dist --module esnext --target esnext --skipLibCheck --moduleResolution bundler",
     "build:daemon:linux-x64": "bun build --compile --target=bun-linux-x64 ./src/main.ts --outfile=agents-office-linux-x64",
     "build:daemon:linux-arm64": "bun build --compile --target=bun-linux-arm64 ./src/main.ts --outfile=agents-office-linux-arm64",
@@ -18,11 +17,7 @@
     "build:hook:linux-arm64": "bun build --compile --target=bun-linux-arm64 ./src/hook-shim.ts --outfile=agents-office-hook-linux-arm64",
     "build:hook:darwin-x64": "bun build --compile --target=bun-darwin-x64 ./src/hook-shim.ts --outfile=agents-office-hook-darwin-x64",
     "build:hook:darwin-arm64": "bun build --compile --target=bun-darwin-arm64 ./src/hook-shim.ts --outfile=agents-office-hook-darwin-arm64",
-    "build:forwarder:linux-x64": "bun build --compile --target=bun-linux-x64 ./src/forwarder.ts --outfile=agents-office-forwarder-linux-x64",
-    "build:forwarder:linux-arm64": "bun build --compile --target=bun-linux-arm64 ./src/forwarder.ts --outfile=agents-office-forwarder-linux-arm64",
-    "build:forwarder:darwin-x64": "bun build --compile --target=bun-darwin-x64 ./src/forwarder.ts --outfile=agents-office-forwarder-darwin-x64",
-    "build:forwarder:darwin-arm64": "bun build --compile --target=bun-darwin-arm64 ./src/forwarder.ts --outfile=agents-office-forwarder-darwin-arm64",
-    "build:release": "bun run build:daemon:linux-x64 && bun run build:daemon:linux-arm64 && bun run build:daemon:darwin-x64 && bun run build:daemon:darwin-arm64 && bun run build:hook:linux-x64 && bun run build:hook:linux-arm64 && bun run build:hook:darwin-x64 && bun run build:hook:darwin-arm64 && bun run build:forwarder:linux-x64 && bun run build:forwarder:linux-arm64 && bun run build:forwarder:darwin-x64 && bun run build:forwarder:darwin-arm64 && bun run build:plugin"
+    "build:release": "bun run build:daemon:linux-x64 && bun run build:daemon:linux-arm64 && bun run build:daemon:darwin-x64 && bun run build:daemon:darwin-arm64 && bun run build:hook:linux-x64 && bun run build:hook:linux-arm64 && bun run build:hook:darwin-x64 && bun run build:hook:darwin-arm64 && bun run build:plugin"
   },
   "devDependencies": {
     "@types/node": "^22",

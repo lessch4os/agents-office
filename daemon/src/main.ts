@@ -13,6 +13,7 @@ import { SessionStore } from "./session-store";
 import { PricingManager } from "./pricing";
 import { EmitManager } from "./emitter";
 import { decodeHookPayload } from "./decoder";
+import { loadFileConfig, defaultSocketPath, defaultConfigPath } from "./config";
 
 const VERSION = "0.1.22";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -34,29 +35,50 @@ interface Config {
   relayTo: string | null;
 }
 
-function defaultSocketPath(): string {
+function defaultSocketPath2(): string {
   if (process.env.AGENTS_OFFICE_SOCKET) return process.env.AGENTS_OFFICE_SOCKET;
   if (process.env.XDG_RUNTIME_DIR) return `${process.env.XDG_RUNTIME_DIR}/agents-office.sock`;
   const uid = process.getuid?.() ?? 0;
   return `/tmp/agents-office-${uid}.sock`;
 }
 
+function resolveWebRoot(webRoot: string): string {
+  if (webRoot) {
+    try { if (Bun.file(`${webRoot}/index.html`).size > 0) return webRoot; } catch {}
+  }
+  // Relative to binary: ../share/agents-office/web-dist
+  const binaryDir = dirname(process.execPath);
+  const sharePath = resolve(binaryDir, "../share/agents-office/web-dist");
+  try { if (Bun.file(`${sharePath}/index.html`).size > 0) return sharePath; } catch {}
+  // npm package path
+  const npmRoot = Bun.spawnSync(["npm", "root", "-g"]).stdout.toString().trim();
+  if (npmRoot) {
+    const npmPath = resolve(npmRoot, "@lessch4os/agents-office/web/dist");
+    try { if (Bun.file(`${npmPath}/index.html`).size > 0) return npmPath; } catch {}
+  }
+  // Source repo (dev mode)
+  const repoPath = resolve(__dirname, "../../web/dist");
+  try { if (Bun.file(`${repoPath}/index.html`).size > 0) return repoPath; } catch {}
+  return webRoot;
+}
+
 function parseArgs(): Config {
   const args = process.argv.slice(2);
   const home = process.env.HOME ?? "/tmp";
+  const fileCfg = loadFileConfig();
   const cfg: Config = {
-    port: 8080,
-    socketPath: defaultSocketPath(),
-    projectsRoot: process.env.HOME ? `${process.env.HOME}/.claude/projects` : "/tmp",
-    agBrainRoot: process.env.HOME ? `${process.env.HOME}/.gemini/antigravity-cli/brain` : "/tmp",
-    opencodeSseUrl: null,
-    maxDesks: 16,
-    webRoot: resolve(__dirname, "../../web/dist"),
-    verbose: false,
-    dbPath: process.env.AGENTS_OFFICE_DB ?? `${home}/.agents-office/sessions.db`,
-    password: process.env.AGENTS_OFFICE_PASSWORD ?? null,
-    username: process.env.AGENTS_OFFICE_USERNAME ?? "agents-office",
-    relayTo: process.env.AGENTS_OFFICE_RELAY_TO ?? null,
+    port: fileCfg.port ?? 8080,
+    socketPath: fileCfg.socketPath ?? defaultSocketPath2(),
+    projectsRoot: fileCfg.projectsRoot ?? (process.env.HOME ? `${process.env.HOME}/.claude/projects` : "/tmp"),
+    agBrainRoot: fileCfg.agBrainRoot ?? (process.env.HOME ? `${process.env.HOME}/.gemini/antigravity-cli/brain` : "/tmp"),
+    opencodeSseUrl: fileCfg.opencodeSseUrl ?? null,
+    maxDesks: fileCfg.maxDesks ?? 16,
+    webRoot: resolveWebRoot(fileCfg.webRoot ?? ""),
+    verbose: fileCfg.verbose ?? false,
+    dbPath: process.env.AGENTS_OFFICE_DB ?? fileCfg.db ?? `${home}/.agents-office/sessions.db`,
+    password: process.env.AGENTS_OFFICE_PASSWORD ?? fileCfg.password ?? null,
+    username: fileCfg.username ?? "agents-office",
+    relayTo: process.env.AGENTS_OFFICE_RELAY_TO ?? fileCfg.relayTo ?? null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -147,7 +169,14 @@ ${error ? '<div class="error">invalid credentials</div>' : ""}
 function printUsage(): void {
   console.log(`agents-office v${VERSION}`);
   console.log("");
-  console.log("Usage: agents-office [options]");
+  console.log("Usage: agents-office [setup] [forwarder] [options]");
+  console.log("");
+  console.log("Subcommands:");
+  console.log("  forwarder             Forward local hooks to remote server");
+  console.log("  setup                 Interactive configuration wizard");
+  console.log("  doctor                Run diagnostics and exit");
+  console.log("  reload                Gracefully restart CC/OC + daemon");
+  console.log("  install               Install CC hooks + OC plugin then exit");
   console.log("");
   console.log("Options:");
   console.log("  --port <n>            HTTP/WebSocket port (default: 8080)");
@@ -161,9 +190,6 @@ function printUsage(): void {
   console.log("  --opencode-sse-url    OpenCode SSE event stream URL");
   console.log("  --max-desks <n>       Number of agent desks (default: 16)");
   console.log("  --db <path>           SQLite database path");
-  console.log("  --install             Install hooks + OC plugin then exit");
-  console.log("  --doctor              Run diagnostics and exit");
-  console.log("  --reload              Gracefully restart CC/OC + daemon");
   console.log("  --verbose, -v         Verbose logging");
   console.log("  --version             Print version and exit");
   console.log("  --help                Print this help and exit");
@@ -191,6 +217,16 @@ async function main() {
   }
   if (args.includes("--install") || args.includes("install")) {
     await runInstall();
+    return;
+  }
+  if (args[0] === "forwarder") {
+    const { runForwarder, printForwarderHelp } = await import("./forwarder");
+    runForwarder(args.slice(1));
+    return;
+  }
+  if (args[0] === "setup") {
+    const { runSetup } = await import("./setup");
+    await runSetup();
     return;
   }
   const cfg = parseArgs();

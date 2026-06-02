@@ -12,12 +12,10 @@ class AgentsOffice < Formula
     system "bun", "run", "build:web"
     system "bun", "run", "--cwd", "daemon", "build:daemon"
     system "bun", "run", "--cwd", "daemon", "build:hook"
-    system "bun", "run", "--cwd", "daemon", "build:forwarder"
     system "bun", "run", "--cwd", "daemon", "build:plugin"
 
     bin.install "daemon/agents-office"
     bin.install "daemon/agents-office-hook"
-    bin.install "daemon/agents-office-forwarder"
 
     libexec.install "web/dist" => "web-dist"
     (share/"agents-office").install "daemon/dist/opencode-plugin.js"
