@@ -1,4 +1,3 @@
-import { basename } from "path";
 import * as net from "net";
 import * as fs from "fs";
 import * as path from "path";
@@ -217,12 +216,6 @@ export const AgentOfficePlugin = async ({
             logFile(`session.parent_link sid=${sid} parent=${parentId}`);
           }
           send(sessionStartPayload);
-          send({
-            hook_event_name: "Rename",
-            session_id: sid,
-            transcript_path: sid,
-            label: `oc\u00b7${basename(cwd)}`,
-          });
           break;
         }
 

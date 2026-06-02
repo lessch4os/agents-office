@@ -2,7 +2,7 @@ import * as net from "net";
 import * as os from "os";
 import * as fs from "fs";
 
-const VERSION = "0.1.27";
+const VERSION = "0.1.28";
 
 interface ForwarderConfig {
   serverUrl: string;

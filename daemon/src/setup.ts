@@ -2,7 +2,7 @@ import * as readline from "readline";
 import { DEFAULTS, loadFileConfig, saveConfig, defaultConfigPath } from "./config";
 import type { Config } from "./config";
 
-const VERSION = "0.1.27";
+const VERSION = "0.1.28";
 
 function rl(): readline.Interface {
   return readline.createInterface({ input: process.stdin, output: process.stdout });

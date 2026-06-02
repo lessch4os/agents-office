@@ -50,7 +50,7 @@ function shortCwd(cwd: string): string {
 const SOURCE_COLORS: Record<string, string> = {
   "claude-code": "#4f4",
   "antigravity": "#4af",
-  "opencode": "#fa4",
+  "opencode": "#48f",
 }
 
 function SourceBadge({ source }: { source: string }) {

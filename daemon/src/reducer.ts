@@ -305,7 +305,10 @@ const renameHandler: EventHandler = {
   apply(slot, event, _scene, ctx) {
     if (!slot) return;
     if (slot.label !== event.label) {
-      slot.label = event.label;
+      // Preserve [origin_suffix] from SessionStart label if rename doesn't carry one
+      const existingSuffix = slot.label.match(/\[.*?\]$/)?.[0] ?? "";
+      const hasSuffix = /\[.*?\]$/.test(event.label);
+      slot.label = existingSuffix && !hasSuffix ? event.label + existingSuffix : event.label;
     }
     slot.lastEventAt = ctx.now;
   },

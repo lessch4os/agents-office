@@ -48,6 +48,10 @@ const CHIP_STYLE = new TextStyle({ fontSize: 8, fontFamily: "monospace", fill: "
 const BUBBLE_LINE_STYLE = new TextStyle({ fontSize: 9, fontFamily: "monospace", fill: "#00e5ff" })
 const COST_STYLE = new TextStyle({ fontSize: 11, fontFamily: "monospace", fill: "#ffdd00", fontWeight: "bold" })
 const TOOL_PROJ_STYLE = new TextStyle({ fontSize: 8, fontFamily: "monospace", fill: "#00e5ff" })
+const ORIGIN_STYLE_LOCAL = new TextStyle({ fontSize: 7, fontFamily: "monospace", fill: "#44ddff", fontWeight: "bold" })
+const ORIGIN_STYLE_REMOTE = new TextStyle({ fontSize: 7, fontFamily: "monospace", fill: "#ff8844", fontWeight: "bold" })
+const MACHINE_STYLE = new TextStyle({ fontSize: 7, fontFamily: "monospace", fill: "#556677" })
+const MODEL_STYLE = new TextStyle({ fontSize: 7, fontFamily: "monospace", fill: "#445566" })
 
 function toHex(r: number, g: number, b: number): number {
   return ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff)
@@ -59,6 +63,9 @@ interface NameplateVisual {
   bg: Graphics
   costText: Text
   toolText: Text
+  originText: Text
+  machineText: Text
+  modelText: Text
 }
 
 export class UILayer {
@@ -103,6 +110,9 @@ export class UILayer {
         np.chip.destroy()
         np.costText.destroy()
         np.toolText.destroy()
+        np.originText.destroy()
+        np.machineText.destroy()
+        np.modelText.destroy()
         this.nameplates.delete(id)
         this.bubbleTexts.get(id)?.forEach((t) => t.destroy())
         this.bubbleTexts.delete(id)
@@ -121,12 +131,18 @@ export class UILayer {
         const chip = new Text({ text: "", style: CHIP_STYLE })
         const costText = new Text({ text: "", style: COST_STYLE })
         const toolText = new Text({ text: "", style: TOOL_PROJ_STYLE })
+        const originText = new Text({ text: "", style: ORIGIN_STYLE_LOCAL })
+        const machineText = new Text({ text: "", style: MACHINE_STYLE })
+        const modelText = new Text({ text: "", style: MODEL_STYLE })
         this.container.addChild(bg)
         this.container.addChild(label)
         this.container.addChild(chip)
         this.container.addChild(costText)
         this.container.addChild(toolText)
-        np = { bg, label, chip, costText, toolText }
+        this.container.addChild(originText)
+        this.container.addChild(machineText)
+        this.container.addChild(modelText)
+        np = { bg, label, chip, costText, toolText, originText, machineText, modelText }
         this.nameplates.set(entity.id, np)
       }
 
@@ -134,30 +150,76 @@ export class UILayer {
       const sh = spriteHeight(SPRITES[pose]) * SPRITE_SCALE
       const nameplateY = entity.pos.y + sh / 2 + 4
 
-      const labelStr = (agent.label ?? "").split(" · ")[0] || agent.label || "?"
+      const labelStr = agent.label || "?"
       const chipStr = String(agent.tool_call_count)
 
       np.label.text = labelStr
       np.chip.text = `[${chipStr}]`
 
-      const lw = np.label.width
-      const badgeW = Math.max(lw + 16, 50)
+      // Origin badge
+      const isRemote = agent.origin === "remote"
+      const isLocal = agent.origin === "local"
+      if (isRemote || isLocal) {
+        np.originText.style = isRemote ? ORIGIN_STYLE_REMOTE : ORIGIN_STYLE_LOCAL
+        np.originText.text = isRemote ? "● REMOTE" : "● LOCAL"
+      } else {
+        np.originText.text = ""
+      }
+
+      // Machine name (below origin badge)
+      np.machineText.text = agent.machine_name || ""
+
+      // Model name (below machine)
+      np.modelText.text = agent.model_name || ""
+
+      // Compute layout with info strip
+      const hasInfoRow = np.originText.text.length > 0
+      const lw = Math.max(np.label.width, hasInfoRow ? np.originText.width + 6 : 0)
       const badgeH = 16
+      const badgeW = Math.max(lw + 16, 50)
       const bx = entity.pos.x - badgeW / 2
       const by = nameplateY
 
-      // Nameplate — solid dark pod with cyan border for readability over checkerboard
-      np.bg.clear()
-      np.bg.roundRect(bx, by, badgeW, badgeH, 4).fill({ color: 0x0a0e17, alpha: 0.92 })
-      np.bg.roundRect(bx, by, badgeW, badgeH, 4).stroke({ color: 0x00e5ff, width: 1, alpha: 0.5 })
+      // Info strip below nameplate
+      const infoStripH = hasInfoRow ? 17 : 0
 
-      // Tool count chip — no background, just text to right
+      // Nameplate — solid dark pod with cyan border
+      np.bg.clear()
+      np.bg.roundRect(bx, by, badgeW, badgeH + infoStripH, 4).fill({ color: 0x0a0e17, alpha: 0.92 })
+      np.bg.roundRect(bx, by, badgeW, badgeH + infoStripH, 4).stroke({ color: 0x00e5ff, width: 1, alpha: 0.5 })
+
+      // Info strip background (slightly different shade)
+      if (hasInfoRow) {
+        np.bg.roundRect(bx, by + badgeH, badgeW, infoStripH, 0).fill({ color: 0x0d0d20, alpha: 0.85 })
+      }
+
+      // Tool count chip
       const chipX = bx + badgeW + 4
       np.chip.x = chipX
       np.chip.y = by + 4
 
       np.label.x = entity.pos.x - lw / 2
       np.label.y = by + 3
+
+      // Origin + machine + model on info strip
+      if (hasInfoRow) {
+        np.originText.x = bx + 4
+        np.originText.y = by + badgeH + 1
+
+        const machineX = np.originText.x + np.originText.width + 8
+        np.machineText.x = machineX
+        np.machineText.y = by + badgeH + 1
+
+        if (np.modelText.text) {
+          const modelX = (np.machineText.text ? machineX + np.machineText.width + 8 : machineX)
+          np.modelText.x = modelX
+          np.modelText.y = by + badgeH + 1
+        }
+      } else {
+        np.originText.text = ""
+        np.machineText.text = ""
+        np.modelText.text = ""
+      }
 
       // Floating cost/tool projection above desk
       const isActive = agent.state.type === "Active"
@@ -180,7 +242,6 @@ export class UILayer {
         np.toolText.y = projY
         np.toolText.alpha = 0.7
 
-        // Dark pods behind floating labels so grid lines don't bleed through
         if (toolName) {
           const tw = np.toolText.width
           np.bg.roundRect(entity.pos.x - tw / 2 - 4, projY - 2, tw + 8, 12, 2)
@@ -251,14 +312,12 @@ export class UILayer {
       this.bubbleGfx.roundRect(bx, by, bw, bh, 6).fill({ color: 0x060618, alpha: 0.92 * opacity })
       this.bubbleGfx.roundRect(bx, by, bw, bh, 6).stroke({ color: 0x00e5ff, width: 1, alpha: 0.3 * opacity })
 
-      // tail
       this.bubbleGfx.moveTo(bx_anchor - 4, by + bh)
         .lineTo(bx_anchor + 4, by + bh)
         .lineTo(bx_anchor, by + bh + 6)
         .closePath()
         .fill({ color: 0x060618, alpha: 0.92 * opacity })
 
-      // Update text objects
       let textObjs = this.bubbleTexts.get(agentId)
       if (!textObjs || textObjs.length !== bubble.lines.length) {
         textObjs?.forEach((t) => t.destroy())
@@ -278,7 +337,6 @@ export class UILayer {
       }
     }
 
-    // Clean up bubble texts for expired bubbles
     for (const [id, texts] of this.bubbleTexts) {
       if (!bubbles.has(id)) {
         texts.forEach((t) => t.destroy())
@@ -286,7 +344,6 @@ export class UILayer {
       }
     }
 
-    // Stats
     this.statsText.text = `${entities.length} agent${entities.length !== 1 ? "s" : ""}`
     this.statsText.y = canvasH - 20
   }

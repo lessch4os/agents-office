@@ -242,11 +242,20 @@ export class AgentLayer {
         const radius = baseR + (maxR - baseR) * pulse
         const alpha = 0.08 + 0.08 * pulse
 
-        // 3 concentric circles for glow effect
+        // Origin-based glow tint modulation
+        const [or, og, ob] = agent.origin === "remote"
+          ? [255, 180, 80]
+          : agent.origin === "local"
+            ? [80, 180, 255]
+            : [cr, cg, cb]
+        const gR = Math.round(cr * 0.6 + or * 0.4)
+        const gG = Math.round(cg * 0.6 + og * 0.4)
+        const gB = Math.round(cb * 0.6 + ob * 0.4)
+
         for (let i = 3; i > 0; i--) {
           const r2 = radius * (i / 3) + (3 - i) * 4
           const a2 = alpha * (i / 3)
-          visual.glowGfx.circle(0, 0, r2).fill({ color: toHex(cr, cg, cb), alpha: a2 })
+          visual.glowGfx.circle(0, 0, r2).fill({ color: toHex(gR, gG, gB), alpha: a2 })
         }
       }
 

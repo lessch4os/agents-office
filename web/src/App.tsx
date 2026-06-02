@@ -8,6 +8,7 @@ import { PricingPage } from "./components/PricingPage"
 import InstallPage from "./components/InstallPage"
 import { OfficeStatsHud } from "./components/OfficeStatsHud"
 import { ContextMeterHud } from "./components/ContextMeterHud"
+import { ColorLegendHud } from "./components/ColorLegendHud"
 import { setLiveAgentsCache } from "./liveAgentsCache"
 import { fetchPricing } from "./pricing"
 
@@ -252,6 +253,7 @@ export default function App() {
           {/* Floating HUD panels */}
           {hudsVisible && (
             <>
+              <ColorLegendHud />
               <OfficeStatsHud scene={scene} />
               <ContextMeterHud scene={scene} />
             </>

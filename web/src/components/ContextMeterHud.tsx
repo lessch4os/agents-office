@@ -95,7 +95,7 @@ export function ContextMeterHud({ scene }: Props) {
             const v = ctxTokens(a)
             const pct = Math.min(1, v / a.context_window_limit)
             const barColor = pct > 0.8 ? "var(--text-error)" : pct > 0.6 ? "var(--text-tertiary)" : "var(--text-primary)"
-            const shortLabel = (a.label ?? "").split(" · ")[0] || a.label || "?"
+            const shortLabel = a.label || "?"
             return (
               <div key={a.agent_id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

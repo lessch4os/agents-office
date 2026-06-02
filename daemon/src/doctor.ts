@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const VERSION = "0.1.27";
+const VERSION = "0.1.28";
 
 interface CheckResult {
   name: string;
