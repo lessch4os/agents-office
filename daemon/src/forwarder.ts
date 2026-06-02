@@ -2,7 +2,7 @@ import * as net from "net";
 import * as os from "os";
 import * as fs from "fs";
 
-const VERSION = "0.1.23";
+const VERSION = "0.1.24";
 
 interface ForwarderConfig {
   serverUrl: string;
@@ -30,6 +30,7 @@ function loadForwarderConfig(args: string[]): ForwarderConfig | null {
       const cfg = JSON.parse(fs.readFileSync(`${home}/.agents-office/config.json`, "utf-8")) as Record<string, string>;
       if (!serverUrl) serverUrl = cfg.server_url ?? "";
       if (!password) password = cfg.password ?? "";
+      if (serverUrl && password) console.error("forwarder: using config from ~/.agents-office/config.json");
     } catch {}
   }
 

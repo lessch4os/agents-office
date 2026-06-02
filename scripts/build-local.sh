@@ -26,9 +26,6 @@ echo "  ✓ daemon built (agents-office-${PLATFORM})"
 bun run "build:hook:${PLATFORM}"
 echo "  ✓ hook built (agents-office-hook-${PLATFORM})"
 
-bun run "build:forwarder:${PLATFORM}"
-echo "  ✓ forwarder built (agents-office-forwarder-${PLATFORM})"
-
 cd "$REPO_DIR/web"
 bun run build
 echo "  ✓ web built"
@@ -37,10 +34,8 @@ echo "  ✓ web built"
 cd "$REPO_DIR/daemon"
 ln -sf "agents-office-${PLATFORM}" "agents-office" 2>/dev/null || true
 ln -sf "agents-office-hook-${PLATFORM}" "agents-office-hook" 2>/dev/null || true
-ln -sf "agents-office-forwarder-${PLATFORM}" "agents-office-forwarder" 2>/dev/null || true
 
 echo ""
 echo "==> Build complete for ${PLATFORM}"
 echo "  daemon:    daemon/agents-office-${PLATFORM}"
 echo "  hook:      daemon/agents-office-hook-${PLATFORM}"
-echo "  forwarder: daemon/agents-office-forwarder-${PLATFORM}"

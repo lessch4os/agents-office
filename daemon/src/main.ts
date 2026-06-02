@@ -15,7 +15,7 @@ import { EmitManager } from "./emitter";
 import { decodeHookPayload } from "./decoder";
 import { loadFileConfig, defaultSocketPath, defaultConfigPath } from "./config";
 
-const VERSION = "0.1.23";
+const VERSION = "0.1.24";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ─────────────────────────────────────────────────────────
@@ -51,7 +51,10 @@ function resolveWebRoot(webRoot: string): string {
   const sharePath = resolve(binaryDir, "../share/agents-office/web-dist");
   try { if (Bun.file(`${sharePath}/index.html`).size > 0) return sharePath; } catch {}
   // npm package path
-  const npmRoot = Bun.spawnSync(["npm", "root", "-g"]).stdout.toString().trim();
+  let npmRoot = "";
+  try {
+    npmRoot = Bun.spawnSync(["npm", "root", "-g"]).stdout.toString().trim();
+  } catch {}
   if (npmRoot) {
     const npmPath = resolve(npmRoot, "@lessch4os/agents-office/web/dist");
     try { if (Bun.file(`${npmPath}/index.html`).size > 0) return npmPath; } catch {}

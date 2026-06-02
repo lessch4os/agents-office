@@ -13,7 +13,7 @@ ok()    { printf "${GREEN}  ✓${NC} %s\n" "$*" >&2; }
 fail()  { printf "${RED}  ✗${NC} %s\n" "$*" >&2; exit 1; }
 
 SERVER_HOSTNAME="${SERVER_HOSTNAME:-agents-office.lessch4os.com}"
-VERSION="${VERSION:-0.1.23}"
+VERSION="${VERSION:-0.1.24}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CFG_DIR="$HOME/.agents-office"
 
@@ -151,6 +151,7 @@ Restart=on-failure
 RestartSec=5
 User=$(whoami)
 Environment=HOME=$HOME
+Environment=XDG_RUNTIME_DIR=/run/user/$(id -u)
 Environment=AGENTS_OFFICE_PASSWORD=$PASSWORD
 
 [Install]

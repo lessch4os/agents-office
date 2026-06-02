@@ -1,6 +1,6 @@
 import * as os from "os";
 
-const VERSION = "0.1.23";
+const VERSION = "0.1.24";
 
 function findPids(pattern: string): number[] {
   try {

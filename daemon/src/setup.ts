@@ -2,7 +2,7 @@ import * as readline from "readline";
 import { DEFAULTS, loadFileConfig, saveConfig, defaultConfigPath } from "./config";
 import type { Config } from "./config";
 
-const VERSION = "0.1.23";
+const VERSION = "0.1.24";
 
 function rl(): readline.Interface {
   return readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -20,10 +20,13 @@ function ask(question: string, defaultVal = ""): Promise<string> {
 }
 
 function askPassword(question: string): Promise<string> {
-  const r = rl();
   return new Promise((resolve) => {
+    Bun.spawnSync(["stty", "-echo"]);
+    const r = rl();
     r.question(`${question}: `, (answer) => {
       r.close();
+      Bun.spawnSync(["stty", "echo"]);
+      console.log("");
       resolve(answer.trim());
     });
   });
@@ -79,8 +82,19 @@ export async function runSetup(): Promise<void> {
 
     if (await askYN("  Use existing config?")) {
       if (await askYN("  Start now?")) {
-        console.log("  Starting...");
-        process.env.AGENTS_OFFICE_START = "1";
+        if (existingConfig.mode === "forwarder") {
+          console.log("  Starting forwarder...");
+          const { runForwarder } = await import("./forwarder");
+          const fwdArgs: string[] = [];
+          if (existingConfig.serverUrl) fwdArgs.push("--server", existingConfig.serverUrl);
+          if (existingConfig.password) fwdArgs.push("--password", existingConfig.password);
+          if (existingConfig.verbose) fwdArgs.push("--verbose");
+          runForwarder(fwdArgs);
+        } else {
+          console.log("  Starting daemon...");
+          Bun.spawnSync(["sudo", "systemctl", "restart", "agents-office"]);
+          console.log("  ✓ Daemon started");
+        }
       }
       return;
     }
@@ -116,9 +130,10 @@ export async function runSetup(): Promise<void> {
   console.log("");
 
   // 5. Auto-start on server (create systemd service)
+  let autoStartService = false;
   if (isDaemon) {
-    const autoStart = await askYN("Create systemd service for auto-start?");
-    if (autoStart) {
+    autoStartService = await askYN("Create systemd service for auto-start?");
+    if (autoStartService) {
       try {
         const serviceName = "agents-office";
         const binaryPath = process.execPath || "/usr/local/bin/agents-office";
@@ -173,8 +188,25 @@ WantedBy=multi-user.target
   // 7. Start now
   const start = await askYN("Start now?");
   if (start) {
-    console.log("  Starting...");
-    process.env.AGENTS_OFFICE_START = "1";
+    if (isDaemon) {
+      if (autoStartService) {
+        console.log("  Starting daemon via systemd...");
+        Bun.spawnSync(["sudo", "systemctl", "restart", "agents-office"]);
+        console.log("  ✓ Daemon started");
+      } else {
+        console.log("  To start manually: agents-office --port ${cfg.port}" +
+          (cfg.password ? " --password <your-password>" : "") +
+          (cfg.verbose ? " --verbose" : ""));
+      }
+    } else {
+      console.log("  Starting forwarder...");
+      const { runForwarder } = await import("./forwarder");
+      const fwdArgs: string[] = [];
+      if (cfg.serverUrl) fwdArgs.push("--server", cfg.serverUrl);
+      if (cfg.password) fwdArgs.push("--password", cfg.password);
+      if (cfg.verbose) fwdArgs.push("--verbose");
+      runForwarder(fwdArgs);
+    }
   }
 
   console.log("");

@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const VERSION = "0.1.23";
+const VERSION = "0.1.24";
 
 interface CheckResult {
   name: string;
@@ -528,20 +528,22 @@ async function checkTranscriptDirs(): Promise<CheckResult> {
 }
 
 async function checkDaemonHealth(): Promise<CheckResult> {
-  try {
-    const r = await fetch("http://127.0.0.1:8080/health");
-    if (r.ok) {
-      const text = await r.text();
-      return { name: "daemon-health", status: "ok", message: `responded: "${text.trim()}"` };
-    }
-    return { name: "daemon-health", status: "warn", message: `HTTP ${r.status}` };
-  } catch {
-    const { pid } = findDaemonPid();
-    if (pid !== null) {
-      return { name: "daemon-health", status: "warn", message: "daemon process found but HTTP not responding" };
-    }
-    return { name: "daemon-health", status: "skip", message: "daemon not running — skipping health check" };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
+    try {
+      const r = await fetch("http://127.0.0.1:8080/health");
+      if (r.ok) {
+        const text = await r.text();
+        return { name: "daemon-health", status: "ok", message: `responded: "${text.trim()}"` };
+      }
+      return { name: "daemon-health", status: "warn", message: `HTTP ${r.status}` };
+    } catch {}
   }
+  const { pid } = findDaemonPid();
+  if (pid !== null) {
+    return { name: "daemon-health", status: "warn", message: "daemon process found but HTTP not responding" };
+  }
+  return { name: "daemon-health", status: "skip", message: "daemon not running — skipping health check" };
 }
 
 async function checkUpgradeMethod(): Promise<CheckResult> {
