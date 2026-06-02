@@ -2,7 +2,7 @@ import * as net from "net";
 import * as os from "os";
 import * as fs from "fs";
 
-const VERSION = "0.1.26";
+const VERSION = "0.1.27";
 
 interface ForwarderConfig {
   serverUrl: string;
@@ -15,6 +15,40 @@ function resolveSocketPath(): string {
   if (process.env.AGENTS_OFFICE_SOCKET) return process.env.AGENTS_OFFICE_SOCKET;
   if (process.env.XDG_RUNTIME_DIR) return `${process.env.XDG_RUNTIME_DIR}/agents-office-forwarder.sock`;
   return `/tmp/agents-office-forwarder-${process.getuid?.() ?? 0}.sock`;
+}
+
+const _uid = process.getuid?.() ?? 0;
+
+function daemonSocketPaths(): string[] {
+  const paths: string[] = [];
+  if (process.env.XDG_RUNTIME_DIR) {
+    paths.push(`${process.env.XDG_RUNTIME_DIR}/agents-office.sock`);
+  }
+  paths.push(`/run/user/${_uid}/agents-office.sock`);
+  paths.push(`/tmp/agents-office-${_uid}.sock`);
+  return paths;
+}
+
+const _createdSymlinks: string[] = [];
+
+function createHookCompatSymlinks(fwdPath: string): void {
+  for (const link of daemonSocketPaths()) {
+    if (link === fwdPath) continue;
+    try { fs.unlinkSync(link); } catch {}
+    try {
+      fs.symlinkSync(fwdPath, link);
+      _createdSymlinks.push(link);
+      console.error(`forwarder: hook compat symlink ${link} → ${fwdPath}`);
+    } catch {
+      // Directory may not exist — skip
+    }
+  }
+}
+
+function cleanupSymlinks(): void {
+  for (const link of _createdSymlinks) {
+    try { fs.unlinkSync(link); } catch {}
+  }
 }
 
 function loadForwarderConfig(args: string[]): ForwarderConfig | null {
@@ -156,11 +190,12 @@ export function runForwarder(args: string[]): void {
 
   server.listen(SOCKET_PATH, () => {
     console.error(`forwarder: listening on ${SOCKET_PATH}`);
+    createHookCompatSymlinks(SOCKET_PATH);
   });
 
   connectWs();
 
   setInterval(() => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" })); }, 30000);
-  process.on("SIGINT", () => { server.close(); process.exit(0); });
-  process.on("SIGTERM", () => { server.close(); process.exit(0); });
+  process.on("SIGINT", () => { cleanupSymlinks(); server.close(); process.exit(0); });
+  process.on("SIGTERM", () => { cleanupSymlinks(); server.close(); process.exit(0); });
 }
