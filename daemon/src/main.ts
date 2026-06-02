@@ -15,7 +15,7 @@ import { EmitManager } from "./emitter";
 import { decodeHookPayload } from "./decoder";
 import { loadFileConfig, defaultSocketPath, defaultConfigPath } from "./config";
 
-const VERSION = "0.1.25";
+const VERSION = "0.1.26";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ─────────────────────────────────────────────────────────
