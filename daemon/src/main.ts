@@ -15,7 +15,7 @@ import { EmitManager } from "./emitter";
 import { decodeHookPayload } from "./decoder";
 import { loadFileConfig, defaultSocketPath, defaultConfigPath } from "./config";
 
-const VERSION = "0.1.24";
+const VERSION = "0.1.25";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ─────────────────────────────────────────────────────────
@@ -50,6 +50,9 @@ function resolveWebRoot(webRoot: string): string {
   const binaryDir = dirname(process.execPath);
   const sharePath = resolve(binaryDir, "../share/agents-office/web-dist");
   try { if (Bun.file(`${sharePath}/index.html`).size > 0) return sharePath; } catch {}
+  // Standard share path (brew / manual install convention)
+  const staticSharePath = "/usr/local/share/agents-office/web-dist";
+  try { if (Bun.file(`${staticSharePath}/index.html`).size > 0) return staticSharePath; } catch {}
   // npm package path
   let npmRoot = "";
   try {

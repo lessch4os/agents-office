@@ -13,7 +13,7 @@ ok()    { printf "${GREEN}  ✓${NC} %s\n" "$*" >&2; }
 fail()  { printf "${RED}  ✗${NC} %s\n" "$*" >&2; exit 1; }
 
 SERVER_HOSTNAME="${SERVER_HOSTNAME:-agents-office.lessch4os.com}"
-VERSION="${VERSION:-0.1.24}"
+VERSION="${VERSION:-0.1.25}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CFG_DIR="$HOME/.agents-office"
 
@@ -132,11 +132,18 @@ SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
 step "setting up systemd service..."
 
+# Auto-detect web root from npm package
+WEB_ROOT_CMD=""
+NPM_ROOT=$(npm root -g 2>/dev/null || true)
+if [ -n "$NPM_ROOT" ] && [ -f "$NPM_ROOT/@lessch4os/agents-office/web/dist/index.html" ]; then
+  WEB_ROOT_CMD=" --web-root $NPM_ROOT/@lessch4os/agents-office/web/dist"
+fi
+
 if [ "$INSTALL_METHOD" = "binary" ]; then
-  DAEMON_CMD="$INSTALL_DIR/agents-office --port 8080 --password $PASSWORD"
+  DAEMON_CMD="$INSTALL_DIR/agents-office --port 8080 --password $PASSWORD${WEB_ROOT_CMD:-}"
 else
   BUN_PATH="$(command -v bun)"
-  DAEMON_CMD="$BUN_PATH x @lessch4os/agents-office --port 8080 --password $PASSWORD"
+  DAEMON_CMD="$BUN_PATH x @lessch4os/agents-office --port 8080 --password $PASSWORD${WEB_ROOT_CMD:-}"
 fi
 
 sudo tee "$SERVICE_FILE" >/dev/null <<SERVICEEOF
