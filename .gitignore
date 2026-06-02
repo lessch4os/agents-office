@@ -7,8 +7,8 @@ dist/
 .venv/
 .superpowers/
 .opencode/
-daemon/agents-office
-daemon/agents-office-hook
-daemon/agents-office-forwarder
+daemon/agents-office*
+daemon/agents-office-hook*
+daemon/agents-office-forwarder*
 *.tgz
 *.tgz
