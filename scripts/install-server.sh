@@ -46,12 +46,27 @@ if command -v curl &>/dev/null; then
     ok "binary download failed — falling back to npm+bun"
     USE_BUN=1
   }
+  # Download companion binaries (hook, forwarder, plugin)
+  if [ -z "${USE_BUN:-}" ]; then
+    for comp in agents-office-hook agents-office-forwarder; do
+      c_url="https://github.com/lessch4os/agents-office/releases/download/v${VERSION}/${comp}-${PLATFORM}"
+      curl -fsSL "$c_url" -o "$INSTALL_DIR/$comp" 2>/dev/null || true
+      chmod +x "$INSTALL_DIR/$comp" 2>/dev/null || true
+    done
+  fi
 elif command -v wget &>/dev/null; then
   rm -f "$INSTALL_DIR/agents-office"
   wget -q "$BINARY_URL" -O "$INSTALL_DIR/agents-office" || {
     ok "binary download failed — falling back to npm+bun"
     USE_BUN=1
   }
+  if [ -z "${USE_BUN:-}" ]; then
+    for comp in agents-office-hook agents-office-forwarder; do
+      c_url="https://github.com/lessch4os/agents-office/releases/download/v${VERSION}/${comp}-${PLATFORM}"
+      wget -q "$c_url" -O "$INSTALL_DIR/$comp" 2>/dev/null || true
+      chmod +x "$INSTALL_DIR/$comp" 2>/dev/null || true
+    done
+  fi
 else
   ok "neither curl nor wget found — falling back to npm+bun"
   USE_BUN=1
