@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect"
+import { ConfigProvider, Effect } from "effect"
 import { AgentsOfficeConfig, AgentsOfficeConfigLive } from "./services/config"
 import { makeDaemon } from "./server/http"
 import { runForwarder } from "./cli/forwarder"
@@ -31,6 +31,27 @@ See 'agents-office <command> --help' for command-specific options.
 `)
 }
 
+function parseCliFlags(args: string[]): Record<string, string> {
+  const flags: Record<string, string> = {}
+  for (let i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case "--port": flags.port = args[++i]; break
+      case "--password": flags.password = args[++i]; break
+      case "--max-desks": flags.max_desks = args[++i]; break
+      case "--web-root": flags.web_root = args[++i]; break
+      case "--socket": flags.socket = args[++i]; break
+      case "--projects-root": flags.projects_root = args[++i]; break
+      case "--ag-brain-root": flags.ag_brain_root = args[++i]; break
+      case "--opencode-sse-url": flags.opencode_sse_url = args[++i]; break
+      case "--db": flags.db = args[++i]; break
+      case "--relay-to": flags.relay_to = args[++i]; break
+      case "--verbose": flags.verbose = "true"; break
+      case "--version": case "-v": case "--help": case "-h": break
+    }
+  }
+  return flags
+}
+
 function main(): void {
   const args = process.argv.slice(2)
 
@@ -43,8 +64,9 @@ function main(): void {
     return
   }
 
-  const cmd = args[0]
-  const cmdArgs = args.slice(1)
+  const knownCommands = ["forwarder", "doctor", "reload", "setup", "daemon"]
+  const cmd = knownCommands.includes(args[0]) ? args[0] : "daemon"
+  const cmdArgs = cmd === "daemon" ? args : args.slice(1)
 
   switch (cmd) {
     case "forwarder":
@@ -61,18 +83,36 @@ function main(): void {
       break
     case "daemon":
     default:
-      runDaemon()
+      runDaemon(cmdArgs)
       break
   }
 }
 
-function runDaemon(): void {
+function runDaemon(cmdArgs: string[]): void {
+  const cliFlags = parseCliFlags(cmdArgs)
+  const envFlags: Record<string, string> = {}
+  const envMap: Record<string, string> = {
+    PORT: "port", PASSWORD: "password", MAX_DESKS: "max_desks",
+    WEB_ROOT: "web_root", SOCKET: "socket", DB: "db",
+    PROJECTS_ROOT: "projects_root", AG_BRAIN_ROOT: "ag_brain_root",
+    OPENCODE_SSE_URL: "opencode_sse_url", RELAY_TO: "relay_to", VERBOSE: "verbose",
+  }
+  for (const [envKey, cfgKey] of Object.entries(envMap)) {
+    const val = process.env[envKey]
+    if (val) envFlags[cfgKey] = val
+  }
+  const mergedFlags = { ...envFlags, ...cliFlags }
+  const configProvider = ConfigProvider.fromMap(new Map(Object.entries(mergedFlags)))
+
   Effect.runPromise(
     Effect.gen(function* () {
       const daemon = yield* makeDaemon()
       console.log(`agents-office daemon v${VERSION} started`)
       yield* Effect.never
-    }).pipe(Effect.provide(AgentsOfficeConfigLive)),
+    }).pipe(
+      Effect.provide(AgentsOfficeConfigLive),
+      Effect.withConfigProvider(configProvider),
+    ),
   ).catch(console.error)
 }
 
