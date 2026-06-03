@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bun run src/main.ts",
     "test": "bun test",
+    "test:e2e": "bun test src/web-health.e2e.ts",
     "build:daemon": "bun build --compile --target=bun ./src/main.ts --outfile=agents-office",
     "build:hook": "bun build --compile --target=bun ./src/hook-shim.ts --outfile=agents-office-hook",
     "build:plugin": "tsc src/opencode-plugin.ts --outDir dist --module esnext --target esnext --skipLibCheck --moduleResolution bundler",

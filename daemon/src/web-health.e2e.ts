@@ -1,4 +1,4 @@
-import { test, expect, beforeAll, afterAll } from "bun:test";
+import { test, expect, beforeAll, afterAll, describe } from "bun:test";
 import { spawn } from "bun";
 import { resolve } from "path";
 
