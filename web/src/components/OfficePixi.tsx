@@ -170,12 +170,20 @@ export function OfficePixi({ scene, logEntries }: Props) {
   const serverSpotsRef = useRef<Array<{ x: number; y: number; w: number; h: number }>>([])
 
 
+  // Selection state
+  type Selection = { type: "agent"; id: number } | { type: "desk"; index: number } | null
+  const [selected, setSelected] = useState<Selection>(null)
+
   // UI state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; agent: WireAgent } | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<WireAgent | null>(null)
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
   const [modalTab, setModalTab] = useState<"overview" | "logs" | "stats" | "tree">("overview")
+
+  // Long-press refs (mobile tap-and-hold)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFired = useRef(false)
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
 
   // Canvas dimensions (driven by max_desks)
   const maxDesks = scene?.max_desks ?? 16
@@ -405,8 +413,10 @@ export function OfficePixi({ scene, logEntries }: Props) {
         }
 
         // Render all layers
-        deskLayerRef.current?.update(s?.agents ?? {}, maxDesks, nowMs)
-        agentLayerRef.current?.update(entities, agentMapAll, nowMs, t, selectedAgentId ?? undefined)
+        const selAgentId = selected?.type === "agent" ? selected.id : undefined
+        const selDeskIdx = selected?.type === "desk" ? selected.index : undefined
+        deskLayerRef.current?.update(s?.agents ?? {}, maxDesks, nowMs, selDeskIdx)
+        agentLayerRef.current?.update(entities, agentMapAll, nowMs, t, selAgentId)
         fxRef.current?.update(dt, nowMs, canvasW, canvasH)
         uiLayerRef.current?.update(entities, agentMapAll, bubblesRef.current, nowMs, canvasH)
         } catch (err) {
@@ -524,18 +534,53 @@ export function OfficePixi({ scene, logEntries }: Props) {
     return agentAtPoint(mx, my)
   }
 
-  // ── Mouse handlers ──
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (contextMenu) return // right-click menu open, ignore
+  // ── Pointer / touch handlers ──
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return
+    pointerStartRef.current = { x: e.clientX, y: e.clientY }
+    longPressFired.current = false
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true
+      const rect = canvasRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const { x, y } = toCanvasCoords(e.clientX, e.clientY, rect)
+      const found = findAgent(x, y)
+      if (found) setContextMenu({ x: e.clientX, y: e.clientY, agent: found })
+    }, 400)
+  }
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+    if (longPressFired.current) { longPressFired.current = false; return }
+    if (contextMenu) return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
     const { x, y } = toCanvasCoords(e.clientX, e.clientY, rect)
-    const found = findAgent(x, y)
-    setSelectedAgentId(found ? found.agent_id : null)
+    const deskIdx = deskIndexAtPoint(x, y)
+    const foundAgent = findAgent(x, y)
+    if (foundAgent) {
+      setSelected(prev => prev?.type === "agent" && prev.id === foundAgent.agent_id ? null : { type: "agent", id: foundAgent.agent_id })
+    } else if (deskIdx !== null) {
+      setSelected(prev => prev?.type === "desk" && prev.index === deskIdx ? null : { type: "desk", index: deskIdx })
+    } else {
+      setSelected(null)
+    }
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!longPressTimer.current || !pointerStartRef.current) return
+    const dx = e.clientX - pointerStartRef.current.x
+    const dy = e.clientY - pointerStartRef.current.y
+    if (dx * dx + dy * dy > 100) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
   }
 
   const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault()
+    if (longPressFired.current) { longPressFired.current = false; return }
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
     const { x, y } = toCanvasCoords(e.clientX, e.clientY, rect)
@@ -562,8 +607,11 @@ export function OfficePixi({ scene, logEntries }: Props) {
         width={canvasW}
         height={canvasH}
         onContextMenu={handleContextMenu}
-        onClick={handleCanvasClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerMove={handlePointerMove}
         style={{
+          touchAction: "none",
           display: "block",
           margin: "0 auto",
           borderRadius: 8,

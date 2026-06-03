@@ -6,7 +6,7 @@ import { runDoctor } from "./cli/doctor"
 import { runReload } from "./cli/reloader"
 import { runSetup } from "./cli/setup"
 
-const VERSION = "0.1.30"
+const VERSION = "0.1.31"
 
 function printHelp(): void {
   console.log(`agents-office v${VERSION}

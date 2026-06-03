@@ -42,7 +42,7 @@ export class DeskLayer {
     this.container = container
   }
 
-  update(agents: Record<number, WireAgent>, maxDesks: number, nowMs: number): void {
+  update(agents: Record<number, WireAgent>, maxDesks: number, nowMs: number, selectedIndex?: number): void {
     if (maxDesks !== this.maxDesks) {
       this.maxDesks = maxDesks
       // Rebuild desk graphics count
@@ -70,11 +70,11 @@ export class DeskLayer {
       const x = 40 + col * (DESK_W + DESK_GAP)
       const y = 40 + row * (DESK_H + DESK_GAP)
       const agent = agentByDesk.get(idx) ?? null
-      this.drawDesk(g, x, y, agent, nowMs)
+      this.drawDesk(g, x, y, agent, nowMs, idx === selectedIndex)
     }
   }
 
-  private drawDesk(g: Graphics, x: number, y: number, agent: WireAgent | null, nowMs: number): void {
+  private drawDesk(g: Graphics, x: number, y: number, agent: WireAgent | null, nowMs: number, selected: boolean = false): void {
     const occupied = agent !== null && agent.exiting_at_ms === null
     const variant = agent ? deskVariant(agent.tool_call_count) : "standard"
     const isActive = agent?.state.type === "Active"
@@ -110,6 +110,11 @@ export class DeskLayer {
     g.rect(dx, y, dw, 1).fill({ color: 0xffffff, alpha: occupied ? 0.04 : 0.02 })
     // border — cyan glow for active, dark for idle
     g.rect(dx, y, dw, dh).stroke({ color: isActive ? 0x00e5ff : (occupied ? 0x1a1a3a : 0x111122), width: 1, alpha: isActive ? 0.6 : 1.0 })
+
+    // Selection border
+    if (selected) {
+      g.rect(dx - 2, y - 2, dw + 4, dh + 4).stroke({ color: 0xffcc00, width: 2, alpha: 0.9 })
+    }
 
     if (!occupied || !agent) return
 

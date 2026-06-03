@@ -86,7 +86,9 @@ function makeCtx(v: Record<string, unknown>, sourceOverride?: string) {
   const sessionId = getStr(v, "session_id")!
   const transcriptPath = getStr(v, "transcript_path")!
   const agentType = getStr(v, "agent_type") ?? null
-  const source = sourceOverride ?? (agentType === "opencode" ? "opencode" : "claude-code")
+  const payloadSource = getStr(v, "source") ?? null
+  const rawSource = sourceOverride ?? agentType ?? payloadSource ?? "claude-code"
+  const source = rawSource === "opencode" ? "opencode" : "claude-code"
   return { agentId: 0, source, sessionId, transcriptPath, agentType }
 }
 

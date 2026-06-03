@@ -1,4 +1,3 @@
-import { Effect, Fiber, Queue } from "effect"
 import net from "net"
 import fs from "fs"
 import os from "os"
@@ -37,6 +36,7 @@ export function runForwarder(args: string[]): void {
     const cfg = JSON.parse(fs.readFileSync(`${home}/.agents-office/config.json`, "utf-8")) as Record<string, string>
     if (!serverUrl) serverUrl = cfg.server_url ?? ""
     if (!password) password = cfg.password ?? ""
+    if (!verbose) verbose = cfg.verbose === "true"
   } catch {}
 
   for (let i = 0; i < args.length; i++) {
