@@ -4,7 +4,6 @@ import { resolve } from "path";
 
 const PORT = 23457;
 const HEALTH_URL = `http://127.0.0.1:${PORT}/health`;
-const LOGIN_URL = `http://127.0.0.1:${PORT}/login`;
 const DAEMON_SCRIPT = resolve(import.meta.dir, "main.ts");
 const WEB_ROOT = resolve(import.meta.dir, "../../web/dist");
 
@@ -18,10 +17,10 @@ beforeAll(async () => {
   } catch {}
 
   proc = spawn([
-    "bun", "run", DAEMON_SCRIPT, "--port", String(PORT),
+    "bun", "run", DAEMON_SCRIPT,
     ...(webRootFound ? ["--web-root", WEB_ROOT] : []),
   ], {
-    env: { ...process.env, AGENTS_OFFICE_DB: ":memory:" },
+    env: { ...process.env, PORT: String(PORT), AGENTS_OFFICE_DB: ":memory:" },
   });
 
   for (let i = 0; i < 30; i++) {
@@ -41,21 +40,15 @@ afterAll(() => {
 test("daemon responds to /health", async () => {
   const r = await fetch(HEALTH_URL);
   expect(r.ok).toBe(true);
-  const body = await r.text();
-  expect(body.trim()).toBe("ok");
+  const body = await r.json();
+  expect(body).toEqual({ ok: true });
 });
 
-test("daemon serves login page (built-in, no web-root needed)", async () => {
-  const r = await fetch(LOGIN_URL);
+test("daemon serves api/scene", async () => {
+  const r = await fetch(`http://127.0.0.1:${PORT}/api/scene`);
   expect(r.ok).toBe(true);
-  const body = await r.text();
-  expect(body).toContain("<!DOCTYPE html>");
-});
-
-test("daemon serves index.html from web-root", async () => {
-  if (!webRootFound) return;
-  const r = await fetch(`http://127.0.0.1:${PORT}/`);
-  expect(r.ok).toBe(true);
-  const body = await r.text();
-  expect(body).toContain("<!DOCTYPE html>");
+  const body = await r.json();
+  expect(body).toHaveProperty("agents");
+  expect(body).toHaveProperty("max_desks");
+  expect(body).toHaveProperty("now_ms");
 });
