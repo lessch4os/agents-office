@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Pre-push checks: runs Bun tests + web build before pushing.
+# Pre-push checks: runs Bun tests, DB schema drift check, and web build.
 # Mirrors .github/workflows/ci.yml.
 set -euo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 if [[ "${SKIP_PREFLIGHT:-0}" == "1" ]]; then
@@ -15,10 +16,10 @@ step() { printf '\033[36m[preflight] %s\033[0m\n' "$*" >&2; }
 fail() { printf '\033[31m[preflight] FAILED: %s\033[0m\n' "$*" >&2; exit 1; }
 
 step 'bun test (daemon unit tests)'
-bun test --cwd daemon --path-ignore-patterns="web-health" || fail 'daemon unit tests: fix failures and recommit'
+bun test --cwd daemon || fail 'daemon unit tests: fix failures and recommit'
 
-step 'bun test (web health test — starts daemon, hits /health and /)'
-bun test --cwd daemon --filter="web-health" || fail 'web health test: daemon not serving correctly'
+step 'check DB schema drift'
+bash scripts/check-db-schema.sh || fail 'db schema drift: run bunx drizzle-kit generate and update migrations.ts'
 
 step 'bun run build (web)'
 bun run --cwd web build || fail 'web build: fix build errors and recommit'

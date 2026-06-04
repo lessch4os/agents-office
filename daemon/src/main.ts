@@ -5,8 +5,9 @@ import { runForwarder } from "./cli/forwarder"
 import { runDoctor } from "./cli/doctor"
 import { runReload } from "./cli/reloader"
 import { runSetup } from "./cli/setup"
+import { runDbMigrate } from "./cli/db-migrate"
 
-const VERSION = "0.1.31"
+const VERSION = "0.1.32"
 
 function printHelp(): void {
   console.log(`agents-office v${VERSION}
@@ -16,6 +17,7 @@ Commands:
   daemon                  Start the daemon server (default)
   forwarder               Forward local hooks to a remote server
   doctor                  Run diagnostics
+  db-migrate              Apply pending database migrations
   setup                   Interactive configuration wizard
   reload                  Graceful restart agents + daemon
 
@@ -64,7 +66,7 @@ function main(): void {
     return
   }
 
-  const knownCommands = ["forwarder", "doctor", "reload", "setup", "daemon"]
+  const knownCommands = ["forwarder", "doctor", "reload", "setup", "db-migrate", "daemon"]
   const cmd = knownCommands.includes(args[0]) ? args[0] : "daemon"
   const cmdArgs = cmd === "daemon" ? args : args.slice(1)
 
@@ -80,6 +82,9 @@ function main(): void {
       break
     case "setup":
       runSetup().catch(console.error)
+      break
+    case "db-migrate":
+      runDbMigrate(cmdArgs)
       break
     case "daemon":
     default:
@@ -105,11 +110,14 @@ function runDaemon(cmdArgs: string[]): void {
   const configProvider = ConfigProvider.fromMap(new Map(Object.entries(mergedFlags)))
 
   Effect.runPromise(
-    Effect.gen(function* () {
-      const daemon = yield* makeDaemon()
-      console.log(`agents-office daemon v${VERSION} started`)
-      yield* Effect.never
-    }).pipe(
+    Effect.acquireRelease(
+      makeDaemon(),
+      (daemon) => Effect.sync(() => { daemon.server.stop() }),
+    ).pipe(
+      Effect.flatMap((daemon) => {
+        console.log(`agents-office daemon v${VERSION} started`)
+        return Effect.never
+      }),
       Effect.provide(AgentsOfficeConfigLive),
       Effect.withConfigProvider(configProvider),
     ),

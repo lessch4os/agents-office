@@ -1,122 +1,109 @@
-import { SqlClient } from "@effect/sql"
-import { Effect, Stream } from "effect"
+import { Effect } from "effect"
+import { eq, sql, desc, isNull, type InferSelectModel } from "drizzle-orm"
+import type { Db } from "../db"
+import { sessions, rawEvents } from "../db/schema"
 
-export interface SessionRow {
-  session_id: string
-  parent_session_id: string | null
-  source: string
-  label: string
-  cwd: string
-  agent_type: string | null
-  context_window_limit: number
-  started_at: number
-  ended_at: number | null
-  input_tokens: number
-  output_tokens: number
-  cache_read_tokens: number
-  tool_call_count: number
-  active_ms: number
-  cost_usd: number
-  cache_hit_rate: number
-  tags: string
-  model_name: string | null
-}
+export type SessionRow = InferSelectModel<typeof sessions>
 
 export function createSession(
-  sql: SqlClient.SqlClient,
+  db: Db,
   session: SessionRow,
 ): Effect.Effect<void> {
-  return sql`
-    INSERT INTO sessions ${sql.insert(session)}
-    ON CONFLICT(session_id) DO UPDATE SET
-      label = excluded.label,
-      source = excluded.source
-  `.pipe(Effect.asVoid)
+  return Effect.sync(() => {
+    db.insert(sessions).values(session).onConflictDoUpdate({
+      target: sessions.sessionId,
+      set: { label: sql`excluded.label`, source: sql`excluded.source` },
+    }).run()
+  })
 }
 
 export function getSession(
-  sql: SqlClient.SqlClient,
+  db: Db,
   sessionId: string,
 ): Effect.Effect<SessionRow | undefined> {
-  return sql<SessionRow[]>`
-    SELECT * FROM sessions WHERE session_id = ${sessionId}
-  `.pipe(Effect.map((rows) => rows.at(0)))
+  return Effect.sync(() => {
+    return db.select().from(sessions).where(eq(sessions.sessionId, sessionId)).get()
+  })
 }
 
 export function listSessions(
-  sql: SqlClient.SqlClient,
+  db: Db,
   limit = 50,
   offset = 0,
 ): Effect.Effect<SessionRow[]> {
-  return sql<SessionRow[]>`
-    SELECT * FROM sessions ORDER BY started_at DESC LIMIT ${limit} OFFSET ${offset}
-  `
+  return Effect.sync(() => {
+    return db.select().from(sessions).orderBy(desc(sessions.startedAt)).limit(limit).offset(offset).all()
+  })
 }
 
 export function updateTokens(
-  sql: SqlClient.SqlClient,
+  db: Db,
   sessionId: string,
   input: number,
   output: number,
   cacheRead: number,
   cumulative?: boolean,
 ): Effect.Effect<void> {
-  if (cumulative) {
-    return sql`
-      UPDATE sessions SET
-        input_tokens = ${input},
-        output_tokens = ${output},
-        cache_read_tokens = ${cacheRead}
-      WHERE session_id = ${sessionId}
-    `.pipe(Effect.asVoid)
-  }
-  return sql`
-    UPDATE sessions SET
-      input_tokens = input_tokens + ${input},
-      output_tokens = output_tokens + ${output},
-      cache_read_tokens = cache_read_tokens + ${cacheRead}
-    WHERE session_id = ${sessionId}
-  `.pipe(Effect.asVoid)
+  return Effect.sync(() => {
+    if (cumulative) {
+      db.update(sessions).set({
+        inputTokens: input,
+        outputTokens: output,
+        cacheReadTokens: cacheRead,
+      }).where(eq(sessions.sessionId, sessionId)).run()
+    } else {
+      db.update(sessions).set({
+        inputTokens: sql`input_tokens + ${input}`,
+        outputTokens: sql`output_tokens + ${output}`,
+        cacheReadTokens: sql`cache_read_tokens + ${cacheRead}`,
+      }).where(eq(sessions.sessionId, sessionId)).run()
+    }
+  })
 }
 
 export function endSession(
-  sql: SqlClient.SqlClient,
+  db: Db,
   sessionId: string,
   endedAt: number,
 ): Effect.Effect<void> {
-  return sql`
-    UPDATE sessions SET ended_at = ${endedAt} WHERE session_id = ${sessionId}
-  `.pipe(Effect.asVoid)
+  return Effect.sync(() => {
+    db.update(sessions).set({ endedAt }).where(eq(sessions.sessionId, sessionId)).run()
+  })
 }
 
 export function addTag(
-  sql: SqlClient.SqlClient,
+  db: Db,
   sessionId: string,
   tag: string,
 ): Effect.Effect<void> {
-  return sql`
-    UPDATE sessions SET tags = json_insert(tags, '$[#]', ${tag})
-    WHERE session_id = ${sessionId}
-  `.pipe(Effect.asVoid)
+  return Effect.sync(() => {
+    db.update(sessions).set({
+      tags: sql`json_insert(tags, '$[#]', ${tag})`,
+    }).where(eq(sessions.sessionId, sessionId)).run()
+  })
 }
 
 export function storeRawEvent(
-  sql: SqlClient.SqlClient,
+  db: Db,
   ts: number,
   sessionId: string | undefined,
   transport: string | undefined,
   payload: string,
 ): Effect.Effect<void> {
-  return sql`
-    INSERT INTO raw_events (ts, session_id, transport, payload)
-    VALUES (${ts}, ${sessionId ?? null}, ${transport ?? null}, ${payload})
-  `.pipe(Effect.asVoid)
+  return Effect.sync(() => {
+    db.insert(rawEvents).values({
+      ts,
+      sessionId: sessionId ?? null,
+      transport: transport ?? null,
+      payload,
+    }).run()
+  })
 }
 
 export function restoreActiveSessions(
-  sql: SqlClient.SqlClient,
+  db: Db,
 ): Effect.Effect<SessionRow[]> {
-  return sql<SessionRow[]>`
-    SELECT * FROM sessions WHERE ended_at IS NULL
-  `
+  return Effect.sync(() => {
+    return db.select().from(sessions).where(isNull(sessions.endedAt)).all()
+  })
 }

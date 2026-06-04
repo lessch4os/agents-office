@@ -63,7 +63,7 @@ export function makeDaemon() {
     const metaRef = yield* Ref.make(createMeta())
 
     // Event processing loop with DB persistence
-    yield* Effect.forkScoped(
+    yield* Effect.fork(
       Stream.fromQueue(eventQueue).pipe(
         Stream.runForEach(([event, transport]) =>
           Ref.update(stateRef, (s) => {
@@ -113,7 +113,7 @@ export function makeDaemon() {
     )
 
     // Tick loop (GC, sweep, expire)
-    yield* Effect.forkScoped(
+    yield* Effect.fork(
       Effect.repeat(
         Effect.gen(function* () {
           const now = Date.now()
@@ -153,7 +153,9 @@ export function makeDaemon() {
           // Store raw event
           try {
             const sid = (parsed.session_id as string) ?? null
-            storeRaw.run(Date.now(), sid, "remote-hook", msg as string)
+            db.insert(rawEvents).values({
+              ts: Date.now(), sessionId: sid, transport: "remote-hook", payload: msg as string,
+            }).run()
           } catch {}
 
           const result = decodeHookPayload(parsed, hashAgentId)
@@ -208,7 +210,7 @@ export function makeDaemon() {
     })
 
     // Broadcast loop
-    yield* Effect.forkScoped(
+    yield* Effect.fork(
       Effect.repeat(
         Effect.sync(() => {
           if (clients.size === 0) return
@@ -223,14 +225,10 @@ export function makeDaemon() {
       ),
     )
 
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => { server.stop() })
-    )
-
     console.log(`daemon running on http://localhost:${config.port}`)
 
     return { eventQueue, stateRef, metaRef, server, clients }
-  }).pipe(Effect.scoped)
+  })
 }
 
 function sceneStateToWire(state: ReducerState, nowMs: number): any {
