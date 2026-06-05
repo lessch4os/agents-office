@@ -3,6 +3,7 @@ import fs from "fs"
 import path from "path"
 import { hashAgentId } from "../schemas/agent-id"
 import type { AgentEvent } from "../schemas/agent-event"
+import { getLogger } from "../services/logger"
 
 export type LineDecoder = (
   transcriptPath: string,
@@ -156,7 +157,7 @@ export function makeJsonlWatcherSource(
     }
 
     // Initial seed
-    yield* Effect.sync(() => console.log(`[jsonl] ${sourceName} watcher starting: ${root}`))
+    yield* Effect.sync(() => getLogger().info("jsonl watcher starting", { source: sourceName, root }))
     const dirExists = await Effect.sync(() => { try { fs.mkdirSync(root, { recursive: true }); return true } catch { return false } })
 
     // Seed: walk dir and seed files

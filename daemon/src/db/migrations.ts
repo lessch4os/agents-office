@@ -46,4 +46,18 @@ export const migrations: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 2,
+    description: "Fix model_pricing columns to match FE wire format: model_name, input_per_m, output_per_m, cache_read_per_m, source",
+    up: [
+      "DROP TABLE IF EXISTS model_pricing",
+      `CREATE TABLE IF NOT EXISTS model_pricing (
+        model_name TEXT PRIMARY KEY,
+        input_per_m REAL NOT NULL DEFAULT 0.0,
+        output_per_m REAL NOT NULL DEFAULT 0.0,
+        cache_read_per_m REAL NOT NULL DEFAULT 0.0,
+        source TEXT NOT NULL DEFAULT 'auto'
+      )`,
+    ],
+  },
 ]

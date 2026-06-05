@@ -1,4 +1,5 @@
 import { HashMap, HashSet } from "effect"
+import { getLogger } from "../services/logger"
 
 export const HOOK_WINS_WINDOW = 500
 export const EXIT_GRACE_WINDOW = 4500
@@ -246,7 +247,7 @@ function handleSessionStart(
   if (slot) return slot
   const desk = nextFreeDesk(state.agents, state.maxDesks)
   if (desk === undefined) {
-    console.warn(`dropped SessionStart — all desks occupied (max_desks=${state.maxDesks})`, event.agentId)
+    getLogger().warn("dropped SessionStart — all desks occupied", { max_desks: state.maxDesks, agentId: event.agentId })
     return undefined
   }
 

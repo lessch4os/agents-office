@@ -39,9 +39,9 @@ export const tokenSnapshots = sqliteTable("token_snapshots", {
 })
 
 export const modelPricing = sqliteTable("model_pricing", {
-  modelId: text("model_id").primaryKey(),
-  inputPerToken: real("input_per_token").notNull().default(0),
-  outputPerToken: real("output_per_token").notNull().default(0),
-  cacheReadPerToken: real("cache_read_per_token").notNull().default(0),
-  contextWindow: integer("context_window").notNull().default(0),
+  modelName: text("model_name").primaryKey(),
+  inputPerM: real("input_per_m").notNull().default(0),
+  outputPerM: real("output_per_m").notNull().default(0),
+  cacheReadPerM: real("cache_read_per_m").notNull().default(0),
+  source: text("source").notNull().default("auto"),
 })

@@ -154,7 +154,7 @@ Bypass in an emergency with `git push --no-verify` or `SKIP_PREFLIGHT=1 git push
 
 - Don't add `ratatui` / `crossterm` / terminal dependencies. The TUI was replaced by the web frontend.
 - Don't write `Bun.connect({ unix: path })` — use `net.createConnection(path)` instead.
-- Don't add `println!` / `eprintln!` to production paths. Use `console.log` / `console.warn`.
+- Don't use raw `console.log` / `console.warn` in production paths. Use `getLogger()` from `src/services/logger.ts` instead (`.info()`, `.warn()`, `.error()`, `.debug()`, `.trace()`). All logs output JSON Lines to stderr.
 - Don't relax the hook shim's "always exit 0" contract. Blocking CC = breaking the user's primary workflow.
 - Don't generate README / CLAUDE.md / docs in PRs unless explicitly asked.
 - Don't `git push` without explicit user confirmation.

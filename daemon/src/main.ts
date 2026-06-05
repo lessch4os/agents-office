@@ -6,8 +6,16 @@ import { runDoctor } from "./cli/doctor"
 import { runReload } from "./cli/reloader"
 import { runSetup } from "./cli/setup"
 import { runDbMigrate } from "./cli/db-migrate"
+import { Logger, getLogger, setLogger } from "./services/logger"
 
-const VERSION = "0.1.32"
+const VERSION = "0.1.33"
+
+function setupLogger(level: number, component: string): Logger {
+  const log = new Logger(level, component)
+  log.setFileAppender(`${process.env.HOME ?? "/tmp"}/.agents-office/logs`)
+  setLogger(log)
+  return log
+}
 
 function printHelp(): void {
   console.log(`agents-office v${VERSION}
@@ -25,7 +33,12 @@ Options:
   --port <n>              HTTP server port (default: 8080)
   --password <p>          Authentication password
   --max-desks <n>         Maximum desks per floor (default: 16)
-  --verbose               Verbose logging
+  --web-root <path>       Path to web frontend build output
+  --socket <path>         Unix socket path for hook shim
+  --db <path>             SQLite database path
+  --log <level>           Log verbosity (1-10, default: 3)
+  --log-type <filter>     Component filter: all,daemon,forwarder,doctor,setup (default: all)
+  --verbose               Shorthand for --log 10
   --version, -v           Print version
   --help, -h              Print this help
 
@@ -47,6 +60,8 @@ function parseCliFlags(args: string[]): Record<string, string> {
       case "--opencode-sse-url": flags.opencode_sse_url = args[++i]; break
       case "--db": flags.db = args[++i]; break
       case "--relay-to": flags.relay_to = args[++i]; break
+      case "--log": flags.log = args[++i]; break
+      case "--log-type": flags.log_type = args[++i]; break
       case "--verbose": flags.verbose = "true"; break
       case "--version": case "-v": case "--help": case "-h": break
     }
@@ -67,8 +82,16 @@ function main(): void {
   }
 
   const knownCommands = ["forwarder", "doctor", "reload", "setup", "db-migrate", "daemon"]
-  const cmd = knownCommands.includes(args[0]) ? args[0] : "daemon"
+  const rawCmd = args[0]?.replace(/^--/, "") ?? ""
+  const cmd = knownCommands.includes(rawCmd) ? rawCmd : "daemon"
   const cmdArgs = cmd === "daemon" ? args : args.slice(1)
+
+  // Setup logger from CLI flags (parsed from raw args)
+  const logIdx = args.indexOf("--log")
+  const logLevel = logIdx >= 0 ? parseInt(args[logIdx + 1], 10) : (args.includes("--verbose") ? 10 : 3)
+  const typeIdx = args.indexOf("--log-type")
+  const logType = typeIdx >= 0 ? args[typeIdx + 1] : "all"
+  setupLogger(isNaN(logLevel) ? 3 : logLevel, logType)
 
   switch (cmd) {
     case "forwarder":
@@ -110,18 +133,24 @@ function runDaemon(cmdArgs: string[]): void {
   const configProvider = ConfigProvider.fromMap(new Map(Object.entries(mergedFlags)))
 
   Effect.runPromise(
-    Effect.acquireRelease(
-      makeDaemon(),
-      (daemon) => Effect.sync(() => { daemon.server.stop() }),
-    ).pipe(
-      Effect.flatMap((daemon) => {
-        console.log(`agents-office daemon v${VERSION} started`)
-        return Effect.never
-      }),
+    Effect.gen(function* () {
+      const daemon = yield* makeDaemon()
+      const log = getLogger()
+      log.info(`agents-office daemon v${VERSION} started`, { version: VERSION })
+
+      // Cleanup on SIGTERM/SIGINT
+      process.on("SIGTERM", () => { daemon.hookServer?.close(); daemon.server.stop(); process.exit(0) })
+      process.on("SIGINT", () => { daemon.hookServer?.close(); daemon.server.stop(); process.exit(0) })
+
+      yield* Effect.never
+    }).pipe(
       Effect.provide(AgentsOfficeConfigLive),
       Effect.withConfigProvider(configProvider),
     ),
-  ).catch(console.error)
+  ).then(() => {}).catch((e) => {
+    getLogger().error("daemon error", { error: String(e) })
+    process.exit(1)
+  })
 }
 
 main()

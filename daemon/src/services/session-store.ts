@@ -107,3 +107,17 @@ export function restoreActiveSessions(
     return db.select().from(sessions).where(isNull(sessions.endedAt)).all()
   })
 }
+
+export function removeTag(
+  db: Db,
+  sessionId: string,
+  tag: string,
+): Effect.Effect<void> {
+  return Effect.sync(() => {
+    const row = db.select({ tags: sessions.tags }).from(sessions).where(eq(sessions.sessionId, sessionId)).get()
+    if (!row) return
+    const tags: string[] = JSON.parse(row.tags || "[]")
+    const filtered = tags.filter((t) => t !== tag)
+    db.update(sessions).set({ tags: JSON.stringify(filtered) }).where(eq(sessions.sessionId, sessionId)).run()
+  })
+}

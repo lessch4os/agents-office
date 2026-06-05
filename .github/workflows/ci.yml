@@ -51,6 +51,9 @@ jobs:
       # Verify compiled binary handles legacy DBs correctly
       - run: bash scripts/test-binary-migration.sh daemon/agents-office-linux-x64
 
+      # Run e2e tests against compiled binary
+      - run: bash scripts/test-e2e.sh
+
       # Build web frontend for npm package
       - run: bun run --cwd web build
 

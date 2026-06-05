@@ -1,6 +1,6 @@
 {
   "name": "@lessch4os/agents-office",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "description": "Real-time office dashboard for AI coding agents — Claude Code, OpenCode, Antigravity",
   "type": "module",
   "bin": {
@@ -42,8 +42,9 @@
   ],
   "scripts": {
     "dev": "bash scripts/dev.sh",
-    "dev:daemon": "bun run --cwd daemon dev",
+    "dev:daemon": "bun run daemon/src/main.ts --port 8080 --web-root web/dist",
     "dev:web": "bun run --cwd web dev",
+    "start": "bun run build:web && bun run daemon/src/main.ts --port 8080 --web-root web/dist",
     "build:web": "bun run --cwd web build",
     "build:daemon": "bun run --cwd daemon build:daemon",
     "build:hook": "bun run --cwd daemon build:hook",

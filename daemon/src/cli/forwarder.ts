@@ -1,6 +1,7 @@
 import net from "net"
 import fs from "fs"
 import os from "os"
+import { Logger, getLogger } from "../services/logger"
 
 interface FwdCfg {
   serverUrl: string
@@ -47,12 +48,13 @@ export function runForwarder(args: string[]): void {
   }
 
   if (!serverUrl || !password) {
-    console.error("usage: AGENTS_OFFICE_SERVER=wss://host/hook AGENTS_OFFICE_PASSWORD=secret agents-office forwarder")
-    console.error("  or:  agents-office forwarder --server wss://host/hook --password secret")
+    const log = getLogger()
+    log.error("usage: AGENTS_OFFICE_SERVER=wss://host/hook AGENTS_OFFICE_PASSWORD=secret agents-office forwarder", {})
+    log.error("  or:  agents-office forwarder --server wss://host/hook --password secret", {})
     process.exit(1)
   }
 
-  const log = verbose ? (...m: unknown[]) => console.error("[forwarder]", ...m) : () => {}
+  const log = getLogger().child("forwarder")
 
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -63,8 +65,8 @@ export function runForwarder(args: string[]): void {
     if (ws) { ws.close(); ws = null }
     ws = new WebSocket(`${serverUrl}?password=${encodeURIComponent(password)}`)
     ws.onopen = () => {
-      console.error(`forwarder: connected to ${serverUrl}`)
-      while (sendBuf.length > 0) { ws!.send(sendBuf.shift()!); log("flushed") }
+      log.info("forwarder connected", { serverUrl })
+      while (sendBuf.length > 0) { ws!.send(sendBuf.shift()!) }
     }
     ws.onclose = () => { ws = null; reconnectTimer = setTimeout(connectWs, 3000) }
     ws.onerror = () => ws?.close()
@@ -75,7 +77,7 @@ export function runForwarder(args: string[]): void {
 
   function send(payload: object) {
     const msg = JSON.stringify({ ...(payload as Record<string, unknown>), machine_name: os.hostname() })
-    log("send", msg.slice(0, 120))
+    log.debug("forwarder send", { msg: msg.slice(0, 120) })
     if (ws?.readyState === WebSocket.OPEN) ws.send(msg)
     else { sendBuf.push(msg); if (sendBuf.length > 1000) sendBuf.shift() }
   }
@@ -91,7 +93,7 @@ export function runForwarder(args: string[]): void {
       for (const line of lines) {
         const trimmed = line.trim()
         if (!trimmed) continue
-        try { const payload = JSON.parse(trimmed); log("received"); send(payload) }
+        try { const payload = JSON.parse(trimmed); log.debug("forwarder received", { sessionId: payload.session_id as string }); send(payload) }
         catch {}
       }
     })
@@ -99,11 +101,11 @@ export function runForwarder(args: string[]): void {
   })
 
   server.listen(socketPath, () => {
-    console.error(`forwarder: listening on ${socketPath}`)
+    log.info("forwarder listening", { socketPath })
     for (const link of daemonSocketPaths()) {
       if (link === socketPath) continue
       try { fs.unlinkSync(link) } catch {}
-      try { fs.symlinkSync(socketPath, link); createdSymlinks.push(link); console.error(`forwarder: symlink ${link} → ${socketPath}`) } catch {}
+      try { fs.symlinkSync(socketPath, link); createdSymlinks.push(link); log.info("forwarder symlink", { link, target: socketPath }) } catch {}
     }
   })
 
