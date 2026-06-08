@@ -4,9 +4,10 @@ import { runDoctor } from "./cli/doctor"
 import { runReload } from "./cli/reloader"
 import { runSetup } from "./cli/setup"
 import { runDbMigrate } from "./cli/db-migrate"
+import { runInstall, runUninstall } from "./cli/install"
 import { Logger, getLogger, setLogger } from "./services/logger"
 
-const VERSION = "0.1.33"
+const VERSION = "0.1.34"
 
 function setupLogger(level: number, component: string): Logger {
   const log = new Logger(level, component)
@@ -24,6 +25,8 @@ Commands:
   forwarder               Forward local hooks to a remote server
   doctor                  Run diagnostics
   db-migrate              Apply pending database migrations
+  install                 Install Claude Code hooks and/or OpenCode plugin
+  uninstall               Remove Claude Code hooks and/or OpenCode plugin
   setup                   Interactive configuration wizard
   reload                  Graceful restart agents + daemon
 
@@ -35,7 +38,7 @@ Options:
   --socket <path>         Unix socket path for hook shim
   --db <path>             SQLite database path
   --log <level>           Log verbosity (1-10, default: 3)
-  --log-type <filter>     Component filter: all,daemon,forwarder,doctor,setup (default: all)
+  --log-type <filter>     Component filter: all,daemon,forwarder,doctor,setup,install (default: all)
   --verbose               Shorthand for --log 10
   --version, -v           Print version
   --help, -h              Print this help
@@ -79,7 +82,7 @@ function main(): void {
     return
   }
 
-  const knownCommands = ["forwarder", "doctor", "reload", "setup", "db-migrate", "daemon"]
+  const knownCommands = ["forwarder", "doctor", "reload", "setup", "db-migrate", "install", "uninstall", "daemon"]
   const rawCmd = args[0]?.replace(/^--/, "") ?? ""
   const cmd = knownCommands.includes(rawCmd) ? rawCmd : "daemon"
   const cmdArgs = cmd === "daemon" ? args : args.slice(1)
@@ -106,6 +109,12 @@ function main(): void {
       break
     case "db-migrate":
       runDbMigrate(cmdArgs)
+      break
+    case "install":
+      runInstall(cmdArgs)
+      break
+    case "uninstall":
+      runUninstall(cmdArgs)
       break
     case "daemon":
     default:
