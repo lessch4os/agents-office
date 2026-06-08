@@ -7,44 +7,44 @@
     "model_pricing": {
       "name": "model_pricing",
       "columns": {
-        "model_id": {
-          "name": "model_id",
+        "model_name": {
+          "name": "model_name",
           "type": "text",
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
-        "input_per_token": {
-          "name": "input_per_token",
+        "input_per_m": {
+          "name": "input_per_m",
           "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": 0
         },
-        "output_per_token": {
-          "name": "output_per_token",
+        "output_per_m": {
+          "name": "output_per_m",
           "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": 0
         },
-        "cache_read_per_token": {
-          "name": "cache_read_per_token",
+        "cache_read_per_m": {
+          "name": "cache_read_per_m",
           "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": 0
         },
-        "context_window": {
-          "name": "context_window",
-          "type": "integer",
+        "source": {
+          "name": "source",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": "'auto'"
         }
       },
       "indexes": {},
@@ -279,6 +279,14 @@
         },
         "cumul_output": {
           "name": "cumul_output",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "cumul_cache": {
+          "name": "cumul_cache",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
