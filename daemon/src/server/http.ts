@@ -1,5 +1,5 @@
 import fs from "fs"
-import { Either, HashMap, Redacted, Stream, Effect } from "effect"
+import { Either, HashMap, Stream, Effect } from "effect"
 import { AgentsOfficeConfig } from "../services/config"
 import type { AgentEvent } from "../schemas/agent-event"
 import { hashAgentId } from "../schemas/agent-id"
@@ -32,7 +32,7 @@ function getSessionId(state: ReducerState, agentId: number): string | undefined 
 
 export function makeDaemon(cfg: {
   port: number; socket: string; db: string; maxDesks: number; webRoot: string | undefined;
-  password: import("effect").Redacted.Redacted<string> | undefined;
+  password: string | undefined;
 }) {
   const { db } = createDb(cfg.db)
   try { seedPricing(db) } catch (e) { log.warn("seedPricing failed", { error: String(e) }) }
@@ -230,7 +230,7 @@ export function makeDaemon(cfg: {
       }
 
       if (url.pathname === "/hook") {
-        const expected = cfg.password ? Redacted.value(cfg.password) : undefined
+        const expected = cfg.password
         const pw = url.searchParams.get("password")
         if (!expected || !pw || expected !== pw) {
           return new Response("unauthorized", { status: 401 })

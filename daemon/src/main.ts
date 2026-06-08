@@ -1,4 +1,3 @@
-import { Redacted } from "effect"
 import { makeDaemon } from "./server/http"
 import { runForwarder } from "./cli/forwarder"
 import { runDoctor } from "./cli/doctor"
@@ -142,7 +141,7 @@ function runDaemon(cmdArgs: string[]): void {
     db: mergedFlags.db ?? `${home}/.agents-office/sessions.db`,
     socket: mergedFlags.socket ?? (xdg ? `${xdg}/agents-office.sock` : `/tmp/agents-office-${uid}.sock`),
     webRoot: mergedFlags.web_root || undefined,
-    password: mergedFlags.password ? Redacted.fromString(mergedFlags.password) : undefined,
+    password: mergedFlags.password,
   }
 
   const daemon = makeDaemon(cfg)
