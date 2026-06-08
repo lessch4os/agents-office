@@ -9,6 +9,8 @@ function extractTokenUsage(usageObj: Record<string, unknown>, agentId: number): 
   if (input === 0 && output === 0) return null
   const event: AgentEvent = { type: "tokenUsage", agentId, input, output }
   if (cacheRead > 0) event.cacheRead = cacheRead
+  const total = getNum(usageObj, "total_tokens") ?? (rawInput + output)
+  if (total > 0) event.total = total
   return event
 }
 
