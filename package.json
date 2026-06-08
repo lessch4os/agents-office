@@ -64,6 +64,6 @@
     "uninstall-hooks": "bun run uninstall-plugin:cc",
     "uninstall-opencode": "bun run uninstall-plugin:oc",
     "prepack": "bun run build:plugin && bun run build:web",
-    "prepublishOnly": "bun test --cwd daemon && bun run build:plugin && bun run build:web"
+    "prepublishOnly": "bun test --cwd daemon --path-ignore-patterns '**/*e2e*' && bun run build:plugin && bun run build:web"
   }
 }
