@@ -28,7 +28,7 @@ export class Logger {
   constructor(minLevel = 3, componentFilter: string | null = null) {
     this.minLevel = minLevel
     this.componentFilter = componentFilter
-      ? new Set(componentFilter === "all" ? [] : componentFilter.split(","))
+      ? (componentFilter === "all" ? null : new Set(componentFilter.split(",")))
       : null
   }
 
