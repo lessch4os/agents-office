@@ -1,8 +1,8 @@
 import { test, expect, beforeAll, afterAll } from "bun:test"
-import { spawn } from "bun"
 import { resolve } from "path"
 import { HookClient } from "./hook-client"
 import { PluginClient } from "./plugin-client"
+import { startTestDaemon, type TestDaemon } from "./helper"
 import {
   uid, sessionId, hookSessionStart, hookActivityStart, hookActivityEnd,
   hookSessionEnd, hookTokenUsage, hookRename, hookTaskStart, hookTaskEnd,
@@ -10,16 +10,13 @@ import {
   fullAgentLifecycle, parentChildChain,
 } from "./fixtures"
 
-const PORT = 23461
-const DAEMON_SCRIPT = resolve(import.meta.dir, "../main.ts")
-const SOCKET_PATH = `/tmp/agents-office-e2e-0.sock`
-
-let proc: import("bun").Subprocess | null = null
+const PORT = 0 // random port assigned by helper
+let daemon: TestDaemon
 let hook: HookClient
 let plugin: PluginClient
 
 async function api(path: string, init?: RequestInit): Promise<any> {
-  const r = await fetch(`http://127.0.0.1:${PORT}${path}`, init)
+  const r = await fetch(`${daemon.url}${path}`, init)
   return r.json().catch(() => null)
 }
 
@@ -42,40 +39,19 @@ function delay(ms: number): Promise<void> {
 }
 
 beforeAll(async () => {
-  proc = spawn([
-    "bun", "run", DAEMON_SCRIPT,
-    "--port", String(PORT),
-    "--socket", SOCKET_PATH,
-  ], {
-    env: { ...process.env, DB: ":memory:", VERBOSE: "true" },
-  })
-
-  for (let i = 0; i < 30; i++) {
-    await delay(200)
-    try {
-      const r = await fetch(`http://127.0.0.1:${PORT}/health`)
-      if (r.ok) break
-    } catch {}
-    if (i === 29) throw new Error("daemon did not start")
-  }
-
-  for (let i = 0; i < 30; i++) {
-    try {
-      if (Bun.file(SOCKET_PATH).size > 0) break
-    } catch {}
-    await delay(200)
-  }
+  daemon = await startTestDaemon(0)
+  await delay(500)
 
   hook = new HookClient()
   plugin = new PluginClient()
-  await hook.connect(SOCKET_PATH)
-  await plugin.connect(SOCKET_PATH)
-}, 20000)
+  await hook.connect(daemon.socketPath)
+  await plugin.connect(daemon.socketPath)
+}, 15000)
 
 afterAll(() => {
   hook?.close()
   plugin?.close()
-  proc?.kill()
+  daemon?.cleanup()
 })
 
 // ── 1. Basic agent lifecycle ───────────────────────────────────────
@@ -265,7 +241,7 @@ test("DB migration matches schema expectations", async () => {
   const { Database } = await import("bun:sqlite")
   const db = new Database(":memory:")
   migrate(db)
-  expect(getCurrentVersion(db)).toBe(2)
+  expect(getCurrentVersion(db)).toBe(4)
 
   for (const table of ["sessions", "raw_events", "token_snapshots", "model_pricing"]) {
     const cols = db.query(`PRAGMA table_info('${table}')`).all() as { name: string }[]

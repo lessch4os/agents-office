@@ -179,7 +179,12 @@ function shouldDrop(
       const ts = getHookTs(meta.recentHookToolUses, `${key}-${tuid}`)
       if (ts !== undefined) return true
     }
-    if (event.type === "tokenUsage" && meta.hookActiveAgents.has(key)) return true
+    if (event.type === "tokenUsage") return false  // Always keep JSONL tokens
+    if (event.type === "activityStart") return inTask
+    if (event.type === "activityEnd") {
+      if (tuid && inTask) return !HashSet.has(tasks, tuid)
+      return inTask
+    }
     return false
   }
 
@@ -478,13 +483,15 @@ export function sweepStale(state: ReducerState, now: number): void {
 export function sweepExited(state: ReducerState, meta: ReducerMeta, now: number): void {
   const expired: Array<[string, AgentSlot]> = []
   for (const entry of state.agents) expired.push(entry)
-  for (const [key, slot] of expired) {
-    if (slot.exitingAt === undefined || now - slot.exitingAt <= EXIT_GRACE_WINDOW) continue
-    if (slot.parentId !== undefined) {
-      const pKey = idKey(slot.parentId)
-      const pOpt = HashMap.get(state.agents, pKey)
-      if (pOpt._tag === "Some") {
-        const parent = pOpt.value
+  const toSweep = expired.filter(([, s]) => s.exitingAt !== undefined && now - s.exitingAt > EXIT_GRACE_WINDOW)
+  // Pass 1: record completedChildren on parents BEFORE removing any agents
+  for (const [, slot] of toSweep) {
+    if (slot.parentId === undefined) continue
+    const pKey = idKey(slot.parentId)
+    const pOpt = HashMap.get(state.agents, pKey)
+    if (pOpt._tag === "Some") {
+      const parent = pOpt.value
+      if (parent.exitingAt === undefined) {
         state.agents = HashMap.set(state.agents, pKey, {
           ...parent, completedChildren: [...parent.completedChildren, {
             agentId: slot.agentId, label: slot.label, agentType: slot.agentType ?? null,
@@ -495,6 +502,9 @@ export function sweepExited(state: ReducerState, meta: ReducerMeta, now: number)
         })
       }
     }
+  }
+  // Pass 2: remove expired agents and cleanup meta
+  for (const [key, slot] of toSweep) {
     state.agents = HashMap.remove(state.agents, key)
     meta.activeTasks = HashMap.remove(meta.activeTasks, key)
     meta.hookActiveAgents.delete(key)

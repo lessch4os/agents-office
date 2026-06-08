@@ -9,6 +9,28 @@ export function setVersion(db: Database, version: number): void {
   db.run(`PRAGMA user_version = ${version}`)
 }
 
+function ensureColumns(db: Database): void {
+  const tables: Record<string, Record<string, string>> = {
+    sessions: {
+      cost_usd: "REAL NOT NULL DEFAULT 0.0",
+      cache_hit_rate: "REAL NOT NULL DEFAULT 0.0",
+      tags: "TEXT NOT NULL DEFAULT '[]'",
+    },
+    token_snapshots: {
+      cumul_cache: "INTEGER NOT NULL DEFAULT 0",
+    },
+  }
+  for (const [table, cols] of Object.entries(tables)) {
+    const existing = db.query(`PRAGMA table_info('${table}')`).all() as { name: string }[]
+    if (existing.length === 0) continue
+    for (const [col, def] of Object.entries(cols)) {
+      if (!existing.some(c => c.name === col)) {
+        db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`)
+      }
+    }
+  }
+}
+
 export function migrate(db: Database): void {
   db.run("PRAGMA journal_mode=WAL")
   db.run("PRAGMA foreign_keys=ON")
@@ -19,20 +41,6 @@ export function migrate(db: Database): void {
     const rawCols = db.query("PRAGMA table_info('raw_events')").all() as { name: string }[]
     if (rawCols.some(c => c.name === "id") && !rawCols.some(c => c.name === "transport")) {
       db.run("DROP TABLE IF EXISTS raw_events")
-    }
-
-    const sessionCols = db.query("PRAGMA table_info('sessions')").all() as { name: string }[]
-    if (sessionCols.length > 0) {
-      const missingSessionCols: Record<string, string> = {
-        cost_usd: "REAL NOT NULL DEFAULT 0.0",
-        cache_hit_rate: "REAL NOT NULL DEFAULT 0.0",
-        tags: "TEXT NOT NULL DEFAULT '[]'",
-      }
-      for (const [col, def] of Object.entries(missingSessionCols)) {
-        if (!sessionCols.some(c => c.name === col)) {
-          db.run(`ALTER TABLE sessions ADD COLUMN ${col} ${def}`)
-        }
-      }
     }
 
     for (const stmt of migrations[0].up) {
@@ -47,4 +55,22 @@ export function migrate(db: Database): void {
     }
     setVersion(db, 2)
   }
+
+  if (currentVersion < 3) {
+    for (const stmt of migrations[2].up) {
+      db.run(stmt)
+    }
+    setVersion(db, 3)
+  }
+
+  if (currentVersion < 4) {
+    const sessionCols = db.query("PRAGMA table_info('sessions')").all() as { name: string }[]
+    if (sessionCols.some(c => c.name === "agent_id")) {
+      db.run("ALTER TABLE sessions DROP COLUMN agent_id")
+    }
+    setVersion(db, 4)
+  }
+
+  // Ensure all expected columns exist (handles DBs upgraded from old code)
+  ensureColumns(db)
 }

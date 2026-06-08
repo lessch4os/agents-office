@@ -172,6 +172,49 @@ describe("Stale agent sweeping", () => {
   })
 })
 
+describe("SweepExited completedChildren", () => {
+  test("child is added to parent completedChildren before parent is removed", () => {
+    const state = createInitialState()
+    const meta = createMeta()
+    let s = state
+    s = applyEvent(s, meta, { type: "sessionStart", agentId: 1, source: "jsonl", sessionId: "parent", cwd: "/p" }, 1000, "jsonl")
+    s = applyEvent(s, meta, { type: "sessionStart", agentId: 2, source: "jsonl", sessionId: "child", cwd: "/p/sub", parentId: 1 }, 1001, "jsonl")
+    // Child exits first
+    s = applyEvent(s, meta, { type: "sessionEnd", agentId: 2 }, 2000, "jsonl")
+    // Parent exits later
+    s = applyEvent(s, meta, { type: "sessionEnd", agentId: 1 }, 10000, "jsonl")
+
+    // Tick at a time when child is expired but parent is not
+    tick(s, meta, 2000 + 4500 + 1) // child: 6501ms - 2000ms = 4501ms > 4500 ✓, parent: 6501ms - 10000ms < 0 ✗
+
+    // Child was added to parent's completedChildren before removal; parent still alive
+    const parent = getAgent(s, 1)
+    expect(parent).toBeDefined()
+    expect(parent.completedChildren.length).toBe(1)
+    expect(parent.completedChildren[0].agentId).toBe(2)
+    expect(HashMap.has(s.agents, String(2))).toBe(false)
+  })
+
+  test("child added to completedChildren when parent stays alive", () => {
+    const state = createInitialState()
+    const meta = createMeta()
+    let s = state
+    s = applyEvent(s, meta, { type: "sessionStart", agentId: 1, source: "jsonl", sessionId: "parent", cwd: "/p" }, 1000, "jsonl")
+    s = applyEvent(s, meta, { type: "sessionStart", agentId: 2, source: "jsonl", sessionId: "child", cwd: "/p/sub", parentId: 1 }, 1001, "jsonl")
+    // Only child exits — parent stays alive
+    s = applyEvent(s, meta, { type: "sessionEnd", agentId: 2 }, 2000, "jsonl")
+
+    tick(s, meta, 2000 + 4500 + 1)
+
+    // Parent still alive, child in completedChildren
+    const parent = getAgent(s, 1)
+    expect(parent).toBeDefined()
+    expect(parent.completedChildren.length).toBe(1)
+    expect(parent.completedChildren[0].agentId).toBe(2)
+    expect(HashMap.has(s.agents, String(2))).toBe(false)
+  })
+})
+
 describe("Subagent suppression", () => {
   test("hook events suppressed while task in flight", () => {
     const state = createInitialState()

@@ -35,6 +35,7 @@ export const tokenSnapshots = sqliteTable("token_snapshots", {
   ts: integer("ts").notNull(),
   cumulInput: integer("cumul_input").notNull().default(0),
   cumulOutput: integer("cumul_output").notNull().default(0),
+  cumulCache: integer("cumul_cache").notNull().default(0),
   contextPct: real("context_pct").notNull().default(0),
 })
 

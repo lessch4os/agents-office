@@ -32,16 +32,29 @@ export class Logger {
       : null
   }
 
+  private logFilePath: string | null = null
+
   setFileAppender(logDir: string): void {
     try { fs.mkdirSync(logDir, { recursive: true }) } catch {}
     const logFile = path.join(logDir, "daemon.log")
+    this.logFilePath = logFile
     this.fileAppender = (entry) => {
-      try { fs.appendFileSync(logFile, JSON.stringify(entry) + "\n") } catch {}
+      try {
+        fs.appendFileSync(logFile, JSON.stringify(entry) + "\n")
+      } catch (e) {
+        try { process.stderr.write(JSON.stringify({ ts: new Date().toISOString(), level: 1, component: "logger", msg: "file append failed", error: String(e) }) + "\n") } catch {}
+      }
     }
   }
 
   private log(level: number, component: string, msg: string, extra?: Record<string, unknown>): void {
-    if (level > this.minLevel) return
+    if (level > this.minLevel) {
+      if (this.fileAppender && this.minLevel < level) {
+        const entry: LogEntry = { ts: new Date().toISOString(), level, component, msg, ...extra }
+        this.fileAppender(entry)
+      }
+      return
+    }
     if (this.componentFilter && !this.componentFilter.has(component)) return
 
     const entry: LogEntry = {
@@ -52,9 +65,7 @@ export class Logger {
       ...extra,
     }
     const line = JSON.stringify(entry)
-    if (level <= 3) process.stderr.write(line + "\n")
-    else if (level <= 5) process.stderr.write(line + "\n")
-    else if (this.minLevel >= 7) process.stderr.write(line + "\n")
+    process.stderr.write(line + "\n")
     this.fileAppender?.(entry)
   }
 

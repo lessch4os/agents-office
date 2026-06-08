@@ -1,0 +1,142 @@
+#!/bin/sh
+# Usage: trace-tokens <session-id>
+#
+# Trace token flow for a session: raw hook payloads → decoder → reducer.
+# Shows every TokenUpdate and PostToolUse event with extracted token values,
+# cumulative vs incremental tracking, and the final persisted state.
+#
+# Environment:
+#   AGENTS_OFFICE_DB    path to agent-office SQLite DB (default: ~/.agents-office/sessions.db)
+#   AGENTS_OFFICE_LOGS  path to log dir (default: ~/.agents-office/logs)
+
+SID="${1:?Usage: trace-tokens <session-id>}"
+DB="${AGENTS_OFFICE_DB:-${HOME}/.agents-office/sessions.db}"
+LOG_DIR="${AGENTS_OFFICE_LOGS:-${HOME}/.agents-office/logs}"
+
+printf '%s\n' "=== Token Trace: $SID ==="
+printf '\n'
+
+if [ ! -f "$DB" ]; then
+  echo "No database found at $DB" >&2
+  exit 1
+fi
+
+# ── Session summary ──
+printf '%s\n' '--- Session Summary ---'
+sqlite3 "$DB" -header -column "
+  SELECT session_id, source, label, model_name, context_window_limit,
+         input_tokens, output_tokens, cache_read_tokens,
+         tool_call_count, active_ms, cost_usd,
+         datetime(started_at/1000, 'unixepoch') AS started,
+         CASE WHEN ended_at IS NULL THEN 'running'
+              ELSE datetime(ended_at/1000, 'unixepoch') END AS ended
+  FROM sessions WHERE session_id = '$SID';
+"
+
+# ── Raw token events in order ──
+printf '\n%s\n' '--- Raw Payloads with Token Data (in order) ---'
+sqlite3 "$DB" -header -column "
+  SELECT id, datetime(ts/1000, 'unixepoch') AS ts, transport,
+    CASE
+      WHEN json_extract(payload, '$.usage.input_tokens') IS NOT NULL THEN 'has_usage'
+      ELSE 'no_usage'
+    END AS has_usage,
+    json_extract(payload, '$.hook_event_name') AS hook_event,
+    json_extract(payload, '$.usage.input_tokens') AS input_tokens,
+    json_extract(payload, '$.usage.output_tokens') AS output_tokens,
+    json_extract(payload, '$.usage.cache_read_input_tokens') AS cache_read,
+    json_extract(payload, '$.usage.total_tokens') AS total_tokens
+  FROM raw_events
+  WHERE session_id = '$SID'
+    AND json_extract(payload, '$.usage') IS NOT NULL
+  ORDER BY ts;
+"
+
+# ── Count token events ──
+HAS_USAGE=$(sqlite3 "$DB" "
+  SELECT COUNT(*) FROM raw_events
+  WHERE session_id = '$SID' AND json_extract(payload, '$.usage') IS NOT NULL;
+")
+NO_USAGE=$(sqlite3 "$DB" "
+  SELECT COUNT(*) FROM raw_events
+  WHERE session_id = '$SID' AND json_extract(payload, '$.usage') IS NULL;
+")
+TOTAL=$(sqlite3 "$DB" "
+  SELECT COUNT(*) FROM raw_events WHERE session_id = '$SID';
+")
+
+printf '\n%s\n' '--- Event Count ---'
+printf '  total raw events:   %s\n' "${TOTAL:-0}"
+printf '  with usage tokens:  %s\n' "${HAS_USAGE:-0}"
+printf '  without usage:      %s\n' "${NO_USAGE:-0}"
+
+# ── Reconstruct cumulative tokens from raw payloads ──
+printf '\n%s\n' '--- Cumulative Token Reconstruction ---'
+# Get all TokenUpdate events with cumulative=1 and their input_tokens
+LAST_CUMUL=$(sqlite3 "$DB" "
+  SELECT json_extract(payload, '$.usage.input_tokens')
+  FROM raw_events
+  WHERE session_id = '$SID'
+    AND json_extract(payload, '$.hook_event_name') = 'TokenUpdate'
+    AND json_extract(payload, '$.usage.input_tokens') IS NOT NULL
+  ORDER BY ts DESC LIMIT 1;
+")
+LAST_OUTPUT=$(sqlite3 "$DB" "
+  SELECT json_extract(payload, '$.usage.output_tokens')
+  FROM raw_events
+  WHERE session_id = '$SID'
+    AND json_extract(payload, '$.hook_event_name') = 'TokenUpdate'
+    AND json_extract(payload, '$.usage.output_tokens') IS NOT NULL
+  ORDER BY ts DESC LIMIT 1;
+")
+SUM_INPUT=$(sqlite3 "$DB" "
+  SELECT COALESCE(SUM(
+    CASE WHEN json_extract(payload, '$.hook_event_name') IN ('TokenUpdate', 'PostToolUse')
+      THEN CAST(json_extract(payload, '$.usage.input_tokens') AS INTEGER)
+      ELSE 0 END
+  ), 0)
+  FROM raw_events WHERE session_id = '$SID';
+")
+SUM_OUTPUT=$(sqlite3 "$DB" "
+  SELECT COALESCE(SUM(
+    CASE WHEN json_extract(payload, '$.hook_event_name') IN ('TokenUpdate', 'PostToolUse')
+      THEN CAST(json_extract(payload, '$.usage.output_tokens') AS INTEGER)
+      ELSE 0 END
+  ), 0)
+  FROM raw_events WHERE session_id = '$SID';
+")
+DB_INPUT=$(sqlite3 "$DB" "SELECT input_tokens FROM sessions WHERE session_id = '$SID';")
+DB_OUTPUT=$(sqlite3 "$DB" "SELECT output_tokens FROM sessions WHERE session_id = '$SID';")
+
+printf '  last TokenUpdate input_tokens:  %s\n' "${LAST_CUMUL:-(none)}"
+printf '  last TokenUpdate output_tokens: %s\n' "${LAST_OUTPUT:-(none)}"
+printf '  sum of all usage.input_tokens:  %s\n' "${SUM_INPUT:-0}"
+printf '  sum of all usage.output_tokens: %s\n' "${SUM_OUTPUT:-0}"
+printf '  DB sessions.input_tokens:       %s\n' "${DB_INPUT:-0}"
+printf '  DB sessions.output_tokens:      %s\n' "${DB_OUTPUT:-0}"
+
+if [ -n "$LAST_CUMUL" ] && [ "$LAST_CUMUL" -gt 0 ] 2>/dev/null; then
+  printf '\n  >> last cumulative input  = %s\n' "$LAST_CUMUL"
+  printf '     DB stored input_tokens = %s\n' "${DB_INPUT:-0}"
+  if [ "$LAST_CUMUL" != "$DB_INPUT" ] 2>/dev/null; then
+    printf '     MISMATCH - cumulative value not persisted to DB\n'
+  else
+    printf '     matches DB\n'
+  fi
+fi
+
+# ── Plugin log entries for this session ──
+if [ -f "$LOG_DIR/plugin.log" ]; then
+  MATCHES=$(grep -c "sid=${SID}" "$LOG_DIR/plugin.log" 2>/dev/null || echo 0)
+  printf '\n%s\n' '--- Plugin Log ---'
+  printf '  plugin.log entries: %s\n' "$MATCHES"
+  printf '  last 3:\n'
+  grep "sid=${SID}" "$LOG_DIR/plugin.log" 2>/dev/null | tail -3 | sed 's/^/    /'
+fi
+
+# ── Daemon log entries for this session ──
+if [ -f "$LOG_DIR/daemon.log" ]; then
+  MATCHES=$(grep -c "sid=${SID}" "$LOG_DIR/daemon.log" 2>/dev/null || echo 0)
+  printf '\n%s\n' '--- Daemon Log ---'
+  printf '  daemon.log entries: %s\n' "$MATCHES"
+fi

@@ -1,5 +1,4 @@
-import { ConfigProvider, Effect } from "effect"
-import { AgentsOfficeConfig, AgentsOfficeConfigLive } from "../services/config"
+import { Redacted } from "effect"
 import { makeDaemon } from "../server/http"
 
 export interface TestDaemon {
@@ -10,34 +9,27 @@ export interface TestDaemon {
 
 export function startTestDaemon(port: number, db = ":memory:"): Promise<TestDaemon> {
   const uid = process.getuid?.() ?? 0
-  const socketPath = `/tmp/agents-office-test-${uid}.sock`
+  const actualPort = port === 0 ? Math.floor(Math.random() * 10000) + 20000 : port
+  const socketPath = `/tmp/agents-office-test-${port === 0 ? process.pid : port}.sock`
 
-  const configProvider = ConfigProvider.fromMap(new Map([
-    ["port", String(port)],
-    ["socket", socketPath],
-    ["db", db],
-  ]))
-
-  let daemon: { hookServer?: { close(): void }; server: { stop(): void } } | null = null
-  const started = new Promise<void>((resolve) => {
-    Effect.runPromise(
-      Effect.gen(function* () {
-        daemon = yield* makeDaemon()
-        resolve()
-        yield* Effect.never
-      }).pipe(
-        Effect.provide(AgentsOfficeConfigLive),
-        Effect.withConfigProvider(configProvider),
-      ),
-    )
+  const daemon = makeDaemon({
+    port: actualPort,
+    socket: socketPath,
+    db: db,
+    maxDesks: 16,
+    webRoot: undefined,
+    password: undefined,
   })
 
-  return started.then(() => ({
-    url: `http://127.0.0.1:${port}`,
-    socketPath,
-    cleanup: () => {
-      daemon?.hookServer?.close()
-      daemon?.server.stop()
-    },
-  }))
+  return new Promise((resolve) => {
+    setTimeout(() => resolve({
+      url: `http://127.0.0.1:${actualPort}`,
+      socketPath,
+      cleanup: () => {
+        clearInterval(daemon.processInterval)
+        daemon.hookServer?.close()
+        daemon.server.stop()
+      },
+    }), 500)
+  })
 }

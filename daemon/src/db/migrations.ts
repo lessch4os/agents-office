@@ -60,4 +60,16 @@ export const migrations: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 3,
+    description: "Add cumul_cache column to token_snapshots for existing DBs",
+    up: [
+    ],
+  },
+  {
+    version: 4,
+    description: "Drop stale agent_id column from sessions (schema cleanup)",
+    up: [
+    ],
+  },
 ]

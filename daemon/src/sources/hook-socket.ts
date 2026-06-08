@@ -3,6 +3,7 @@ import fs from "fs"
 import path from "path"
 import { decodeHookPayload } from "../decoders/hook-decoder"
 import type { AgentEvent } from "../schemas/agent-event"
+import { hashAgentId } from "../schemas/agent-id"
 import { getLogger } from "../services/logger"
 
 const log = getLogger()
@@ -30,12 +31,15 @@ export interface HookSocketServer {
 export function startHookSocket(
   socketPath: string,
   onEvent: (event: AgentEvent, transport: string) => void,
+  onRawPayload?: (parsed: Record<string, unknown>, raw: string) => void,
 ): HookSocketServer {
   try { fs.unlinkSync(socketPath) } catch {}
   createCompatSymlinks(socketPath)
 
   let activeConns = 0
   const server = net.createServer()
+
+  server.on("error", (err) => { log.error("hook socket error", { error: String(err) }) })
 
   server.on("connection", (socket) => {
     if (activeConns >= MAX_CONCURRENT_CONNS) { socket.destroy(); return }
@@ -54,6 +58,8 @@ export function startHookSocket(
         let parsed: Record<string, unknown>
         try { parsed = JSON.parse(trimmed) } catch { continue }
 
+        onRawPayload?.(parsed, trimmed)
+
         const result = decodeHookPayload(parsed, hashAgentId)
         if (result._tag === "Right") {
           const source = result.right.ctx.source
@@ -69,6 +75,8 @@ export function startHookSocket(
     socket.on("timeout", () => { socket.destroy() })
   })
 
-  server.listen(socketPath)
+  server.listen(socketPath, () => {
+    log.warn("hook socket listening", { socketPath })
+  })
   return { close: () => { server.close(); try { fs.unlinkSync(socketPath) } catch {} } }
 }

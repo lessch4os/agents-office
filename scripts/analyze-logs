@@ -1,0 +1,72 @@
+#!/bin/sh
+# Usage: analyze-logs [options]
+#
+# Fast log analysis tool for agents-office daemon and plugin logs.
+# Merges daemon.log and plugin.log, filters, and sorts by timestamp.
+#
+# Options:
+#   --sid <id>    Filter by session ID substring (searches sid= fields)
+#   --plugin      Only plugin.log entries
+#   --daemon      Only daemon.log entries
+#   --lines <n>   Show last N lines per log file before merge
+#   --help,-h     Print this help
+#
+# Environment:
+#   AGENTS_OFFICE_LOG_DIR    base log dir (default: ~/.agents-office/logs)
+#
+# Examples:
+#   analyze-logs --sid ses_1607f9f9
+#   analyze-logs --sid ad096f80 --lines 100
+#   analyze-logs --plugin --lines 50
+
+LOG_DIR="${AGENTS_OFFICE_LOG_DIR:-${HOME}/.agents-office/logs}"
+DAEMON_LOG="${LOG_DIR}/daemon.log"
+PLUGIN_LOG="${LOG_DIR}/plugin.log"
+
+SID=""
+SHOW_PLUGIN=true
+SHOW_DAEMON=true
+LINES=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --sid) SID="$2"; shift 2 ;;
+    --plugin) SHOW_DAEMON=false ;;
+    --daemon) SHOW_PLUGIN=false ;;
+    --lines) LINES="$2"; shift 2 ;;
+    --verbose|-v) ;;
+    --help|-h) sed -n '2,/^$/s/^# //p' "$0"; exit 0 ;;
+    *) echo "unknown: $1" >&2; exit 1 ;;
+  esac
+done
+
+# Build and run a merge of both logs, sorted by timestamp.
+# Each line gets prefixed with a sort key (ISO timestamp stripped of brackets),
+# then sorted, then prefix removed.
+{
+  if $SHOW_PLUGIN && [ -f "$PLUGIN_LOG" ]; then
+    if [ -n "$LINES" ]; then
+      tail -n "$LINES" "$PLUGIN_LOG"
+    else
+      cat "$PLUGIN_LOG"
+    fi
+  fi
+  if $SHOW_DAEMON && [ -f "$DAEMON_LOG" ]; then
+    if [ -n "$LINES" ]; then
+      tail -n "$LINES" "$DAEMON_LOG"
+    else
+      cat "$DAEMON_LOG"
+    fi
+  fi
+} | {
+  # Fast SID filter if requested
+  if [ -n "$SID" ]; then
+    grep "sid=${SID}"
+  else
+    cat
+  fi
+} | {
+  # If we have only a few lines, sort them
+  # For speed: use sort with first-character key (timestamp is always first)
+  sort -t'[' -k2
+}

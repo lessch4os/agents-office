@@ -54,11 +54,12 @@ describe("DB migration", () => {
     const db = makeEmptyDb()
     migrate(db)
 
-    expect(getCurrentVersion(db)).toBe(2)
+    expect(getCurrentVersion(db)).toBe(4)
 
     const sessionCols = getColumns(db, "sessions")
     expect(sessionCols).toContain("session_id")
     expect(sessionCols).toContain("model_name")
+    expect(sessionCols).not.toContain("agent_id")
 
     const rawCols = getColumns(db, "raw_events")
     expect(rawCols).toContain("transport")
@@ -67,6 +68,7 @@ describe("DB migration", () => {
     const snapCols = getColumns(db, "token_snapshots")
     expect(snapCols).toContain("session_id")
     expect(snapCols).toContain("context_pct")
+    expect(snapCols).toContain("cumul_cache")
 
     const pricingCols = getColumns(db, "model_pricing")
     expect(pricingCols).toContain("model_name")
@@ -84,7 +86,7 @@ describe("DB migration", () => {
 
     migrate(db)
 
-    expect(getCurrentVersion(db)).toBe(2)
+    expect(getCurrentVersion(db)).toBe(4)
 
     const afterCols = getColumns(db, "raw_events")
     expect(afterCols).toContain("transport")
@@ -96,9 +98,9 @@ describe("DB migration", () => {
   test("idempotent: running migrate twice does not fail", () => {
     const db = makeEmptyDb()
     migrate(db)
-    expect(getCurrentVersion(db)).toBe(2)
+    expect(getCurrentVersion(db)).toBe(4)
     migrate(db)
-    expect(getCurrentVersion(db)).toBe(2)
+    expect(getCurrentVersion(db)).toBe(4)
   })
 
   test("v2 upgrades model_pricing columns", () => {
@@ -118,7 +120,7 @@ describe("DB migration", () => {
 
     migrate(db)
 
-    expect(getCurrentVersion(db)).toBe(2)
+    expect(getCurrentVersion(db)).toBe(4)
     const afterCols = getColumns(db, "model_pricing")
     expect(afterCols).toContain("model_name")
     expect(afterCols).toContain("source")
@@ -160,7 +162,7 @@ describe("DB migration", () => {
 
     migrate(db)
 
-    expect(getCurrentVersion(db)).toBe(2)
+    expect(getCurrentVersion(db)).toBe(4)
 
     // Sessions data preserved
     const sessions = db.query("SELECT session_id, source, label, started_at FROM sessions WHERE session_id = 'legacy-s1'").all() as any[]
@@ -172,6 +174,7 @@ describe("DB migration", () => {
     expect(sessionCols).toContain("cost_usd")
     expect(sessionCols).toContain("cache_hit_rate")
     expect(sessionCols).toContain("tags")
+    expect(sessionCols).not.toContain("agent_id")
 
     // raw_events has transport column
     const rawCols = getColumns(db, "raw_events")
@@ -186,5 +189,31 @@ describe("DB migration", () => {
     const pricingCols = getColumns(db, "model_pricing")
     expect(pricingCols).toContain("model_name")
     expect(pricingCols).toContain("input_per_m")
+  })
+
+  test("v4 drops stale agent_id column from sessions", () => {
+    const db = makeEmptyDb()
+    // Simulate a DB with stale agent_id column (from old version)
+    db.run(`CREATE TABLE IF NOT EXISTS sessions (
+      session_id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      started_at INTEGER NOT NULL
+    )`)
+    db.run("INSERT INTO sessions (session_id, agent_id, source, started_at) VALUES ('s1', 'abc123', 'hook', 1000)")
+    db.run("PRAGMA user_version = 3")
+
+    const beforeCols = getColumns(db, "sessions")
+    expect(beforeCols).toContain("agent_id")
+
+    migrate(db)
+
+    expect(getCurrentVersion(db)).toBe(4)
+    const afterCols = getColumns(db, "sessions")
+    expect(afterCols).not.toContain("agent_id")
+
+    const rows = db.query("SELECT session_id, source FROM sessions").all() as any[]
+    expect(rows.length).toBe(1)
+    expect(rows[0].session_id).toBe("s1")
   })
 })

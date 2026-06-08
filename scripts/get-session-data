@@ -6,120 +6,121 @@
 # parent/child relationships, and session summary.
 #
 # Env overrides:
-#   AGENT_OFFICE_DB    path to agent-office SQLite DB (default: ~/.agent-office/sessions.db)
-#   AGENT_OFFICE_LOGS  path to log dir (default: ~/.agent-office/logs)
-#
-# Examples:
-#   get-session-data ses_abc123
-#   AGENT_OFFICE_DB=/tmp/test.db get-session-data ses_abc123
+#   AGENTS_OFFICE_DB    path to agent-office SQLite DB (default: ~/.agents-office/sessions.db)
+#   AGENTS_OFFICE_LOGS  path to log dir (default: ~/.agents-office/logs)
 
 SID="${1:?Usage: get-session-data <session-id>}"
-DB="${AGENT_OFFICE_DB:-${HOME}/.agent-office/sessions.db}"
-LOG_DIR="${AGENT_OFFICE_LOGS:-${HOME}/.agent-office/logs}"
+DB="${AGENTS_OFFICE_DB:-${HOME}/.agents-office/sessions.db}"
+LOG_DIR="${AGENTS_OFFICE_LOGS:-${HOME}/.agents-office/logs}"
 
-printf '=== Session: %s ===\n\n' "$SID"
+printf '%s\n' "=== Session: $SID ==="
+printf '\n'
 
-# ── Summary ──────────────────────────────────────────────────────────
-if [ -f "$DB" ]; then
-  printf '--- SQLite: session summary ---\n'
-  sqlite3 "$DB" -header -column "
-    SELECT session_id, source, model_name, context_window_limit,
-           input_tokens, output_tokens, cache_read_tokens,
-           tool_call_count, active_ms, cost_usd,
-           datetime(started_at/1000, 'unixepoch') AS started,
-           CASE WHEN ended_at IS NULL THEN 'running'
-                ELSE datetime(ended_at/1000, 'unixepoch') END AS ended
-    FROM sessions WHERE session_id = '$SID';
-  "
-
-  printf '\n--- SQLite: parent/child ---\n'
-  sqlite3 "$DB" -header -column "
-    SELECT session_id, source, label, input_tokens, output_tokens
-    FROM sessions
-    WHERE parent_session_id = '$SID'
-       OR session_id = (SELECT parent_session_id FROM sessions WHERE session_id = '$SID')
-       OR session_id = '$SID'
-    ORDER BY started_at;
-  "
-
-  printf '\n--- SQLite: token snapshots ---\n'
-  sqlite3 "$DB" -header -column "
-    SELECT ts, cumul_input, cumul_output, cumul_cache,
-           ROUND(context_pct * 100, 1) AS pct
-    FROM token_snapshots WHERE session_id = '$SID'
-    ORDER BY ts;
-  "
-
-  printf '\n--- SQLite: raw hook events ---\n'
-  sqlite3 "$DB" -header -column "
-    SELECT id, datetime(ts/1000, 'unixepoch') AS ts,
-           source, hook_event, length(payload) AS payload_bytes
-    FROM raw_events WHERE session_id = '$SID'
-    ORDER BY ts;
-  "
-
-  printf '\n--- SQLite: TokenUpdate payloads (cumul tracking check) ---\n'
-  sqlite3 "$DB" -header -column "
-    SELECT id, datetime(ts/1000, 'unixepoch') AS ts,
-      json_extract(payload, '$.usage.input_tokens') AS input_tokens,
-      json_extract(payload, '$.usage.output_tokens') AS output_tokens
-    FROM raw_events
-    WHERE session_id = '$SID' AND hook_event = 'TokenUpdate'
-    ORDER BY ts;
-  "
-
-  printf '\n--- SQLite: TokenDebug payloads (raw OpenCode token data) ---\n'
-  sqlite3 "$DB" -header -column "
-    SELECT id, datetime(ts/1000, 'unixepoch') AS ts,
-      json_extract(payload, '$.role') AS role,
-      json_extract(payload, '$.source_event') AS source_event,
-      json_extract(payload, '$.has_tokens') AS has_tokens,
-      json_extract(payload, '$.status') AS status,
-      json_extract(payload, '$.has_info') AS has_info,
-      json_extract(payload, '$.info_parentID') AS parentID,
-      json_extract(payload, '$.info_parentSessionID') AS parentSessionID,
-      json_extract(payload, '$.lastTaskParentSessionId') AS lastTaskPid,
-      substr(json_extract(payload, '$.token_data'), 1, 80) AS token_data,
-      substr(json_extract(payload, '$.session_info'), 1, 80) AS session_info
-    FROM raw_events
-    WHERE session_id = '$SID' AND hook_event = 'TokenDebug'
-    ORDER BY ts;
-  "
-
-  printf '\n--- SQLite: last raw event payload (full JSON) ---\n'
-  sqlite3 "$DB" "
-    SELECT payload FROM raw_events
-    WHERE session_id = '$SID'
-    ORDER BY ts DESC LIMIT 1;
-  " | python3 -m json.tool 2>/dev/null || true
-
-  # Cross-DB token analysis: compare snapshot cumul vs raw payload sum
-  printf '\n--- Token cross-check: snapshot cumul vs raw payload reconstruction ---\n'
-  SNAPSHOT_LAST=$(sqlite3 "$DB" "SELECT cumul_input FROM token_snapshots WHERE session_id = '$SID' ORDER BY ts DESC LIMIT 1;")
-  PAYLOAD_SUM=$(sqlite3 "$DB" "
-    SELECT COALESCE(SUM(
-      CASE WHEN hook_event = 'TokenUpdate'
-        THEN CAST(json_extract(payload, '$.usage.input_tokens') AS INTEGER)
-        ELSE 0 END
-    ), 0)
-    FROM raw_events WHERE session_id = '$SID';
-  ")
-  printf '  snapshot last cumul_input: %s\n' "${SNAPSHOT_LAST:-(none)}"
-  printf '  raw payload sum:           %s\n' "${PAYLOAD_SUM:-0}"
-  if [ -n "$SNAPSHOT_LAST" ]; then
-    printf '  diff:                      %s\n' $(( SNAPSHOT_LAST - PAYLOAD_SUM ))
-  fi
-else
-  printf 'No SQLite database found at %s\n' "$DB"
+if [ ! -f "$DB" ]; then
+  printf '%s\n' "No SQLite database found at $DB"
+  exit 1
 fi
 
-# ── Daemon + plugin logs ────────────────────────────────────────────
-printf '\n--- Daemon log entries ---\n'
+# ── Summary ──
+printf '%s\n' '--- SQLite: session summary ---'
+sqlite3 "$DB" -header -column "
+  SELECT session_id, source, label, model_name, context_window_limit,
+         input_tokens, output_tokens, cache_read_tokens,
+         tool_call_count, active_ms, cost_usd,
+         datetime(started_at/1000, 'unixepoch') AS started,
+         CASE WHEN ended_at IS NULL THEN 'running'
+              ELSE datetime(ended_at/1000, 'unixepoch') END AS ended
+  FROM sessions WHERE session_id = '$SID';
+"
+
+printf '\n%s\n' '--- SQLite: parent/child ---'
+sqlite3 "$DB" -header -column "
+  SELECT session_id, source, label, input_tokens, output_tokens
+  FROM sessions
+  WHERE parent_session_id = '$SID'
+     OR session_id = (SELECT parent_session_id FROM sessions WHERE session_id = '$SID')
+     OR session_id = '$SID'
+  ORDER BY started_at;
+"
+
+printf '\n%s\n' '--- SQLite: token snapshots ---'
+sqlite3 "$DB" -header -column "
+  SELECT datetime(ts/1000, 'unixepoch') AS ts,
+         cumul_input, cumul_output, cumul_cache,
+         ROUND(context_pct * 100, 1) AS pct
+  FROM token_snapshots WHERE session_id = '$SID'
+  ORDER BY ts;
+"
+
+printf '\n%s\n' '--- SQLite: raw hook events ---'
+sqlite3 "$DB" -header -column "
+  SELECT id, datetime(ts/1000, 'unixepoch') AS ts, transport,
+         json_extract(payload, '$.hook_event_name') AS hook_event,
+         length(payload) AS payload_bytes
+  FROM raw_events WHERE session_id = '$SID'
+  ORDER BY ts;
+"
+
+printf '\n%s\n' '--- SQLite: TokenUpdate payloads (cumul tracking check) ---'
+sqlite3 "$DB" -header -column "
+  SELECT id, datetime(ts/1000, 'unixepoch') AS ts,
+    json_extract(payload, '$.usage.input_tokens') AS input_tokens,
+    json_extract(payload, '$.usage.output_tokens') AS output_tokens
+  FROM raw_events
+  WHERE session_id = '$SID'
+    AND json_extract(payload, '$.hook_event_name') = 'TokenUpdate'
+  ORDER BY ts;
+"
+
+printf '\n%s\n' '--- SQLite: PostToolUse token data (per-tool tokens) ---'
+sqlite3 "$DB" -header -column "
+  SELECT id, datetime(ts/1000, 'unixepoch') AS ts,
+    json_extract(payload, '$.usage.input_tokens') AS input_tokens,
+    json_extract(payload, '$.usage.output_tokens') AS output_tokens,
+    json_extract(payload, '$.tool_use_id') AS tool_use_id
+  FROM raw_events
+  WHERE session_id = '$SID'
+    AND json_extract(payload, '$.hook_event_name') = 'PostToolUse'
+    AND json_extract(payload, '$.usage.input_tokens') IS NOT NULL
+  ORDER BY ts;
+"
+
+printf '\n%s\n' '--- SQLite: last raw event payload (full JSON) ---'
+sqlite3 "$DB" "
+  SELECT payload FROM raw_events
+  WHERE session_id = '$SID'
+  ORDER BY ts DESC LIMIT 1;
+" | python3 -m json.tool 2>/dev/null || true
+
+# Cross-DB token analysis
+printf '\n%s\n' '--- Token cross-check: snapshot cumul vs raw payload reconstruction ---'
+SNAPSHOT_LAST=$(sqlite3 "$DB" "SELECT cumul_input FROM token_snapshots WHERE session_id = '$SID' ORDER BY ts DESC LIMIT 1;")
+PAYLOAD_SUM=$(sqlite3 "$DB" "
+  SELECT COALESCE(SUM(
+    CASE WHEN json_extract(payload, '$.hook_event_name') = 'TokenUpdate'
+      THEN CAST(COALESCE(json_extract(payload, '$.usage.input_tokens'), 0) AS INTEGER)
+      ELSE 0 END
+  ), 0)
+  FROM raw_events WHERE session_id = '$SID';
+")
+DB_INPUT=$(sqlite3 "$DB" "SELECT input_tokens FROM sessions WHERE session_id = '$SID';")
+printf '  snapshot last cumul_input: %s\n' "${SNAPSHOT_LAST:-(none)}"
+printf '  raw payload sum:           %s\n' "${PAYLOAD_SUM:-0}"
+printf '  DB sessions.input_tokens:  %s\n' "${DB_INPUT:-0}"
+if [ -n "$SNAPSHOT_LAST" ]; then
+  printf '  snapshot-sum diff:         %s\n' $(( SNAPSHOT_LAST - PAYLOAD_SUM ))
+fi
+if [ -n "$DB_INPUT" ] && [ -n "$SNAPSHOT_LAST" ] && [ "$SNAPSHOT_LAST" -gt 0 ] 2>/dev/null; then
+  printf '  DB-snapshot diff:          %s\n' $(( DB_INPUT - SNAPSHOT_LAST ))
+fi
+
+# ── Daemon + plugin logs ──
+printf '\n%s\n' '--- Daemon log entries ---'
 if [ -f "$LOG_DIR/daemon.log" ]; then
-  grep "sid=${SID}" "$LOG_DIR/daemon.log" 2>/dev/null || printf '(none)\n'
+  grep "sid=${SID}" "$LOG_DIR/daemon.log" 2>/dev/null || printf '%s\n' '(none)'
 fi
 
-printf '\n--- Plugin log entries ---\n'
+printf '\n%s\n' '--- Plugin log entries ---'
 if [ -f "$LOG_DIR/plugin.log" ]; then
-  grep "sid=${SID}" "$LOG_DIR/plugin.log" 2>/dev/null || printf '(none)\n'
+  grep "sid=${SID}" "$LOG_DIR/plugin.log" 2>/dev/null || printf '%s\n' '(none)'
 fi

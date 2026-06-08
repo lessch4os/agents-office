@@ -1,5 +1,4 @@
-import { ConfigProvider, Effect } from "effect"
-import { AgentsOfficeConfig, AgentsOfficeConfigLive } from "./services/config"
+import { Redacted } from "effect"
 import { makeDaemon } from "./server/http"
 import { runForwarder } from "./cli/forwarder"
 import { runDoctor } from "./cli/doctor"
@@ -130,27 +129,28 @@ function runDaemon(cmdArgs: string[]): void {
     if (val) envFlags[cfgKey] = val
   }
   const mergedFlags = { ...envFlags, ...cliFlags }
-  const configProvider = ConfigProvider.fromMap(new Map(Object.entries(mergedFlags)))
 
-  Effect.runPromise(
-    Effect.gen(function* () {
-      const daemon = yield* makeDaemon()
-      const log = getLogger()
-      log.info(`agents-office daemon v${VERSION} started`, { version: VERSION })
+  const port = parseInt(mergedFlags.port ?? "8080", 10)
+  const maxDesks = parseInt(mergedFlags.max_desks ?? "16", 10)
+  const home = process.env.HOME ?? "/tmp"
+  const uid = process.getuid?.() ?? 0
+  const xdg = process.env.XDG_RUNTIME_DIR
 
-      // Cleanup on SIGTERM/SIGINT
-      process.on("SIGTERM", () => { daemon.hookServer?.close(); daemon.server.stop(); process.exit(0) })
-      process.on("SIGINT", () => { daemon.hookServer?.close(); daemon.server.stop(); process.exit(0) })
+  const cfg = {
+    port,
+    maxDesks,
+    db: mergedFlags.db ?? `${home}/.agents-office/sessions.db`,
+    socket: mergedFlags.socket ?? (xdg ? `${xdg}/agents-office.sock` : `/tmp/agents-office-${uid}.sock`),
+    webRoot: mergedFlags.web_root || undefined,
+    password: mergedFlags.password ? Redacted.fromString(mergedFlags.password) : undefined,
+  }
 
-      yield* Effect.never
-    }).pipe(
-      Effect.provide(AgentsOfficeConfigLive),
-      Effect.withConfigProvider(configProvider),
-    ),
-  ).then(() => {}).catch((e) => {
-    getLogger().error("daemon error", { error: String(e) })
-    process.exit(1)
-  })
+  const daemon = makeDaemon(cfg)
+  const log = getLogger()
+  log.warn(`agents-office daemon v${VERSION} started`, { version: VERSION })
+
+  process.on("SIGTERM", () => { clearInterval(daemon.processInterval); daemon.hookServer?.close(); daemon.server.stop(); process.exit(0) })
+  process.on("SIGINT", () => { clearInterval(daemon.processInterval); daemon.hookServer?.close(); daemon.server.stop(); process.exit(0) })
 }
 
 main()

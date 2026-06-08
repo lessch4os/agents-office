@@ -94,6 +94,7 @@ export function makeJsonlWatcherSource(
 
       if (!seen.has(filePath)) {
         seen.add(filePath)
+        getLogger().info("jsonl watcher new session", { file: path.basename(filePath), size: fileLen })
         const agentId = hashAgentId(sourceName, filePath)
         const sessionId = path.basename(filePath, ".jsonl")
         const cwd = extractCwd(chunk.bytes) ?? ""
@@ -158,10 +159,10 @@ export function makeJsonlWatcherSource(
 
     // Initial seed
     yield* Effect.sync(() => getLogger().info("jsonl watcher starting", { source: sourceName, root }))
-    const dirExists = await Effect.sync(() => { try { fs.mkdirSync(root, { recursive: true }); return true } catch { return false } })
+    yield* Effect.sync(() => { try { fs.mkdirSync(root, { recursive: true }) } catch {} })
 
     // Seed: walk dir and seed files
-    await Effect.sync(async () => {
+    yield* Effect.promise(async () => {
       let entries: fs.Dirent[]
       try { entries = await fs.promises.readdir(root, { withFileTypes: true }) } catch { return }
       for (const entry of entries) {
@@ -187,9 +188,9 @@ export function makeJsonlWatcherSource(
     )
 
     // fs.watch (best-effort)
-    Effect.sync(() => {
+    yield* Effect.sync(() => {
       try {
-        const watcher = fs.watch(root, { recursive: true }, (_event, filename) => {
+        const watcher = fs.watch(root, { recursive: true }, (event, filename) => {
           if (filename && filename.endsWith(".jsonl")) {
             walkFile(path.join(root, filename))
           }

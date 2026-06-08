@@ -1,4 +1,5 @@
-import { Effect, Either, HashMap, Queue, Redacted, Ref, Stream, Schedule } from "effect"
+import fs from "fs"
+import { Either, HashMap, Redacted, Stream, Effect } from "effect"
 import { AgentsOfficeConfig } from "../services/config"
 import type { AgentEvent } from "../schemas/agent-event"
 import { hashAgentId } from "../schemas/agent-id"
@@ -10,6 +11,8 @@ import { eq, sql, desc, isNull } from "drizzle-orm"
 import { seedPricing, resetPricingToDefaults } from "../services/pricing"
 import { addTag, removeTag } from "../services/session-store"
 import { startHookSocket } from "../sources/hook-socket"
+import { makeJsonlWatcherSource } from "../sources/jsonl-watcher"
+import { decodeCcLine, ccSessionEnded, ccDeriveLabel } from "../decoders/cc-jsonl"
 import { getLogger } from "../services/logger"
 
 const log = getLogger()
@@ -27,236 +30,259 @@ function getSessionId(state: ReducerState, agentId: number): string | undefined 
   return opt._tag === "Some" ? opt.value.sessionId : undefined
 }
 
-export function makeDaemon() {
-  return Effect.gen(function* () {
-    const config = yield* AgentsOfficeConfig
+export function makeDaemon(cfg: {
+  port: number; socket: string; db: string; maxDesks: number; webRoot: string | undefined;
+  password: import("effect").Redacted.Redacted<string> | undefined;
+}) {
+  const { db } = createDb(cfg.db)
+  try { seedPricing(db) } catch (e) { log.warn("seedPricing failed", { error: String(e) }) }
 
-    const { db } = createDb(config.db)
-    try { seedPricing(db) } catch (e) { log.warn("seedPricing failed", { error: String(e) }) }
+  let state = createInitialState(cfg.maxDesks)
+  const eventBuf: Array<readonly [AgentEvent, string]> = []
 
-    const eventQueue = yield* Queue.unbounded<readonly [AgentEvent, string]>()
-    const stateRef = yield* Ref.make(createInitialState(config.maxDesks))
-    const metaRef = yield* Ref.make(createMeta())
-
-    // Hook socket — receive events from hook shim + OC plugin
-    const hookServer = startHookSocket(config.socket, (event, transport) => {
-      Queue.unsafeOffer(eventQueue, [event, transport])
-    })
-    log.info("hook socket started", { socket: config.socket })
-
-    // Event processing loop with DB persistence
-    yield* Effect.forkDaemon(
-      Stream.fromQueue(eventQueue).pipe(
-        Stream.runForEach(([event, transport]) =>
-          Ref.update(stateRef, (s) => {
-            const meta = createMeta()
-            const now = Date.now()
-            const next = applyEvent(s, meta, event as any, now, transport)
-            s.nextLabelN = next.nextLabelN
-
-            // Persist to DB
-            try {
-              if (event.type === "sessionStart") {
-                db.insert(sessions).values({
-                  sessionId: event.sessionId,
-                  source: event.source,
-                  label: "",
-                  cwd: event.cwd,
-                  agentType: event.agentType ?? null,
-                  contextWindowLimit: event.contextWindowLimit ?? 200000,
-                  startedAt: now,
-                }).onConflictDoUpdate({
-                  target: sessions.sessionId,
-                  set: { label: sql`excluded.label`, source: sql`excluded.source` },
-                }).run()
-              }
-              if (event.type === "rename") {
-                const sid = getSessionId(s, event.agentId)
-                if (sid) {
-                  db.update(sessions).set({ label: event.label }).where(eq(sessions.sessionId, sid)).run()
-                }
-              }
-              if (event.type === "tokenUsage") {
-                const sid = getSessionId(s, event.agentId)
-                if (sid) {
-                  if (event.cumulative) {
-                    db.update(sessions).set({
-                      inputTokens: event.input,
-                      outputTokens: event.output,
-                      cacheReadTokens: event.cacheRead ?? 0,
-                    }).where(eq(sessions.sessionId, sid)).run()
-                  } else {
-                    db.update(sessions).set({
-                      inputTokens: sql`input_tokens + ${event.input}`,
-                      outputTokens: sql`output_tokens + ${event.output}`,
-                      cacheReadTokens: sql`cache_read_tokens + ${event.cacheRead ?? 0}`,
-                    }).where(eq(sessions.sessionId, sid)).run()
-                  }
-                  if (event.total) {
-                    const pct = event.total > 0 ? ((event.input + event.output) / event.total) * 100 : 0
-                    db.insert(tokenSnapshots).values({
-                      sessionId: sid, ts: now,
-                      cumulInput: event.input, cumulOutput: event.output, contextPct: pct,
-                    }).run()
-                  }
-                }
-              }
-              if (event.type === "sessionEnd") {
-                const sid = getSessionId(s, event.agentId)
-                if (sid) {
-                  db.update(sessions).set({ endedAt: now }).where(eq(sessions.sessionId, sid)).run()
-                }
-              }
-            } catch (e) {
-              log.warn("db persist error", { error: String(e) })
-            }
-
-            return next
-          }),
-        ),
-      ),
-    )
-
-    // Tick loop (GC, sweep, expire)
-    yield* Effect.forkDaemon(
-      Effect.repeat(
-        Effect.gen(function* () {
-          const now = Date.now()
-          yield* Ref.update(stateRef, (s) => { tick(s, createMeta(), now); return s })
-        }),
-        Schedule.spaced(1000),
-      ),
-    )
-
-    // WebSocket clients (frontend)
-    const clients = new Set<WebSocket>()
-    // Hook connection clients (forwarders)
-    const hookConns = new Set<WebSocket>()
-    // Cached scene state for synchronous API access
-    let cachedSceneJson = JSON.stringify({ type: "scene", data: { agents: {}, max_desks: config.maxDesks, now_ms: Date.now() } })
-    let cachedSceneWire = { agents: {}, max_desks: config.maxDesks, now_ms: Date.now() }
-
-    const server = Bun.serve({
-      port: config.port,
-      websocket: {
-        open(ws) {
-          if ((ws as any).data?.type === "hook") hookConns.add(ws)
-          else {
-            clients.add(ws)
-            try { ws.send(cachedSceneJson) } catch {}
-          }
-        },
-        close(ws) {
-          hookConns.delete(ws)
-          clients.delete(ws)
-        },
-        message(ws, msg) {
-          if (!hookConns.has(ws)) return
-          let parsed: Record<string, unknown>
-          try { parsed = JSON.parse(msg as string) } catch { return }
-          if (parsed.type === "ping") {
-            try { ws.send(JSON.stringify({ type: "pong" })) } catch {}
-            return
-          }
-          if (parsed.type === "pong") return
-
-          // Store raw event
-          try {
-            const sid = (parsed.session_id as string) ?? null
-            db.insert(rawEvents).values({
-              ts: Date.now(), sessionId: sid, transport: "remote-hook", payload: msg as string,
-            }).run()
-          } catch {}
-
-          const result = decodeHookPayload(parsed, hashAgentId)
-          if (Either.isRight(result)) {
-            for (const ev of result.right.events) {
-              Queue.unsafeOffer(eventQueue, [ev, "remote-hook"])
-            }
-          }
-        },
-      },
-      async fetch(req, server) {
-        const url = new URL(req.url)
-
-        // WebSocket upgrade — frontend (must be sync, before any await)
-        if (url.pathname === "/ws") {
-          const success = server.upgrade(req)
-          if (success) return new Response(null, { status: 101 })
-          return new Response("WebSocket upgrade failed", { status: 400 })
-        }
-
-        // WebSocket upgrade — hook forwarder (must be sync)
-        if (url.pathname === "/hook") {
-          const expected = config.password ? Redacted.value(config.password) : undefined
-          const pw = url.searchParams.get("password")
-          if (!expected || !pw || expected !== pw) {
-            return new Response("unauthorized", { status: 401 })
-          }
-          const success = server.upgrade(req, { data: { type: "hook" } })
-          if (success) return new Response(null, { status: 101 })
-          return new Response("WebSocket upgrade failed", { status: 400 })
-        }
-
-        // API: /api/scene
-        if (url.pathname === "/api/scene" && req.method === "GET") {
-          return new Response(JSON.stringify(cachedSceneWire), {
-            headers: { "content-type": "application/json" },
-          })
-        }
-
-        // API: /api/sessions/**
-        if (url.pathname.startsWith("/api/sessions")) {
-          return await handleSessionsApi(url, req, db)
-        }
-
-        // API: /api/pricing/**
-        if (url.pathname.startsWith("/api/pricing")) {
-          return await handlePricingApi(url, req, db)
-        }
-
-        // Health check
-        if (url.pathname === "/health") {
-          return new Response(JSON.stringify({ ok: true }), {
-            headers: { "content-type": "application/json" },
-          })
-        }
-
-        // Default: serve static files from webRoot or 404
-        if (config.webRoot) {
-          const filePath = url.pathname === "/" ? "/index.html" : url.pathname
-          const filePathAbs = config.webRoot + filePath
-          try {
-            const file = Bun.file(filePathAbs)
-            const stat = file.size
-            if (stat > 0 || filePathAbs.endsWith("/index.html")) return new Response(file)
-          } catch {}
-        }
-        return new Response("Not Found", { status: 404 })
-      },
-    })
-
-    // Broadcast loop
-    yield* Effect.forkDaemon(
-      Effect.repeat(
-        Effect.gen(function* () {
-          const state = yield* Ref.get(stateRef)
-          const wire = sceneStateToWire(state, Date.now())
-          cachedSceneWire = wire
-          cachedSceneJson = JSON.stringify({ type: "scene", data: wire })
-          if (clients.size === 0) return
-          for (const ws of clients) {
-            try { ws.send(cachedSceneJson) } catch { clients.delete(ws) }
-          }
-        }),
-        Schedule.spaced(1000),
-      ),
-    )
-
-      log.info(`daemon running on http://localhost:${config.port}`, { port: config.port })
-
-    return { eventQueue, stateRef, metaRef, server, clients, hookServer }
+  // Hook socket — receive events from hook shim + OC plugin
+  const hookServer = startHookSocket(cfg.socket, (event, transport) => {
+    eventBuf.push([event, transport])
+  }, (parsed, raw) => {
+    try {
+      const sid = (parsed.session_id as string) ?? null
+      db.insert(rawEvents).values({
+        ts: Date.now(), sessionId: sid, transport: "hook", payload: raw,
+      }).run()
+    } catch {}
   })
+  log.warn("hook socket started", { socket: cfg.socket })
+
+  // JSONL watcher — reads CC transcript files for token data (hooks don't carry usage)
+  const ccRoot = `${process.env.HOME}/.claude/projects`
+  try {
+    if (fs.existsSync(ccRoot)) {
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const source = yield* makeJsonlWatcherSource(ccRoot, "jsonl", decodeCcLine, ccDeriveLabel, ccSessionEnded)
+          yield* Stream.runForEach(source.events, ([ev, transport]) =>
+            Effect.sync(() => { eventBuf.push([ev, transport]) }),
+          )
+        }),
+      ).catch((e) => log.warn("jsonl watcher failed", { error: String(e) }))
+      log.warn("jsonl watcher started", { root: ccRoot })
+    } else {
+      log.warn("jsonl watcher skipped — no CC projects dir", { root: ccRoot })
+    }
+  } catch (e) {
+    log.warn("jsonl watcher init failed", { error: String(e) })
+  }
+
+  // Event processing — non-blocking, reads from eventBuf via polling
+  const processInterval = setInterval(() => {
+    while (eventBuf.length > 0) {
+      const [event, transport] = eventBuf.shift()!
+      const meta = createMeta()
+      const now = Date.now()
+
+      // Auto-create session for orphaned token events (e.g. OpenCode plugin
+      // reconnected after daemon restart — sessionStart was in previous run)
+      if (event.type === "tokenUsage" || event.type === "activityStart") {
+        const key = String(event.agentId)
+        const slotOpt = HashMap.get(state.agents, key)
+        if (slotOpt._tag === "None") {
+          const syntheticSid = `auto-${event.agentId.toString(16)}`
+          const startEvent: AgentEvent = {
+            type: "sessionStart", agentId: event.agentId,
+            source: transport, sessionId: syntheticSid, cwd: "",
+          }
+          state = applyEvent(state, meta, startEvent as any, now, transport)
+          try {
+            db.insert(sessions).values({
+              sessionId: syntheticSid, source: transport, label: "",
+              cwd: "", agentType: null, contextWindowLimit: 200000, startedAt: now,
+            }).onConflictDoUpdate({
+              target: sessions.sessionId,
+              set: { label: sql`excluded.label`, source: sql`excluded.source` },
+            }).run()
+          } catch (e) {
+            log.warn("db persist error", { error: String(e) })
+          }
+        }
+      }
+
+      state = applyEvent(state, meta, event as any, now, transport)
+
+      try {
+        if (event.type === "sessionStart") {
+          db.insert(sessions).values({
+            sessionId: event.sessionId,
+            parentSessionId: (event as any).parentSessionId ?? null,
+            source: event.source,
+            label: "",
+            cwd: event.cwd,
+            agentType: event.agentType ?? null,
+            contextWindowLimit: event.contextWindowLimit ?? 200000,
+            startedAt: now,
+          }).onConflictDoUpdate({
+            target: sessions.sessionId,
+            set: { label: sql`excluded.label`, source: sql`excluded.source` },
+          }).run()
+        }
+        if (event.type === "rename") {
+          const sid = getSessionId(state, event.agentId)
+          if (sid) {
+            db.update(sessions).set({ label: event.label }).where(eq(sessions.sessionId, sid)).run()
+          }
+        }
+        if (event.type === "tokenUsage") {
+          const sid = getSessionId(state, event.agentId)
+          if (sid) {
+            if (event.cumulative) {
+              db.update(sessions).set({
+                inputTokens: event.input,
+                outputTokens: event.output,
+                cacheReadTokens: event.cacheRead ?? 0,
+              }).where(eq(sessions.sessionId, sid)).run()
+            } else {
+              db.update(sessions).set({
+                inputTokens: sql`input_tokens + ${event.input}`,
+                outputTokens: sql`output_tokens + ${event.output}`,
+                cacheReadTokens: sql`cache_read_tokens + ${event.cacheRead ?? 0}`,
+              }).where(eq(sessions.sessionId, sid)).run()
+            }
+            if (event.total) {
+              const pct = event.total > 0 ? ((event.input + event.output) / event.total) * 100 : 0
+              db.insert(tokenSnapshots).values({
+                sessionId: sid, ts: now,
+                cumulInput: event.input, cumulOutput: event.output, contextPct: pct,
+              }).run()
+            }
+          }
+        }
+        if (event.type === "sessionEnd") {
+          const sid = getSessionId(state, event.agentId)
+          if (sid) {
+            db.update(sessions).set({ endedAt: now }).where(eq(sessions.sessionId, sid)).run()
+          }
+        }
+      } catch (e) {
+        log.warn("db persist error", { error: String(e) })
+      }
+    }
+  }, 100)
+
+  // Tick loop (GC, sweep, expire)
+  setInterval(() => {
+    const now = Date.now()
+    tick(state, createMeta(), now)
+  }, 1000)
+
+  // WebSocket clients (frontend)
+  const clients = new Set<WebSocket>()
+  // Hook connection clients (forwarders)
+  const hookConns = new Set<WebSocket>()
+  // Cached scene state for synchronous API access
+  let cachedSceneJson = JSON.stringify({ type: "scene", data: { agents: {}, max_desks: cfg.maxDesks, now_ms: Date.now() } })
+  let cachedSceneWire = { agents: {}, max_desks: cfg.maxDesks, now_ms: Date.now() }
+
+  const server = Bun.serve({
+    port: cfg.port,
+    websocket: {
+      open(ws) {
+        if ((ws as any).data?.type === "hook") hookConns.add(ws)
+        else {
+          clients.add(ws)
+          try { ws.send(cachedSceneJson) } catch {}
+        }
+      },
+      close(ws) {
+        hookConns.delete(ws)
+        clients.delete(ws)
+      },
+      message(ws, msg) {
+        if (!hookConns.has(ws)) return
+        let parsed: Record<string, unknown>
+        try { parsed = JSON.parse(msg as string) } catch { return }
+        if (parsed.type === "ping") {
+          try { ws.send(JSON.stringify({ type: "pong" })) } catch {}
+          return
+        }
+        if (parsed.type === "pong") return
+
+        try {
+          const sid = (parsed.session_id as string) ?? null
+          db.insert(rawEvents).values({
+            ts: Date.now(), sessionId: sid, transport: "remote-hook", payload: msg as string,
+          }).run()
+        } catch {}
+
+        const result = decodeHookPayload(parsed, hashAgentId)
+        if (Either.isRight(result)) {
+          for (const ev of result.right.events) {
+            eventBuf.push([ev, "remote-hook"])
+          }
+        }
+      },
+    },
+    async fetch(req, server) {
+      const url = new URL(req.url)
+
+      if (url.pathname === "/ws") {
+        const success = server.upgrade(req)
+        if (success) return new Response(null, { status: 101 })
+        return new Response("WebSocket upgrade failed", { status: 400 })
+      }
+
+      if (url.pathname === "/hook") {
+        const expected = cfg.password ? Redacted.value(cfg.password) : undefined
+        const pw = url.searchParams.get("password")
+        if (!expected || !pw || expected !== pw) {
+          return new Response("unauthorized", { status: 401 })
+        }
+        const success = server.upgrade(req, { data: { type: "hook" } })
+        if (success) return new Response(null, { status: 101 })
+        return new Response("WebSocket upgrade failed", { status: 400 })
+      }
+
+      if (url.pathname === "/api/scene" && req.method === "GET") {
+        return json(cachedSceneWire)
+      }
+
+      if (url.pathname.startsWith("/api/sessions")) {
+        return await handleSessionsApi(url, req, db)
+      }
+
+      if (url.pathname.startsWith("/api/pricing")) {
+        return await handlePricingApi(url, req, db)
+      }
+
+      if (url.pathname === "/health") {
+        return json({ ok: true })
+      }
+
+      if (cfg.webRoot) {
+        const filePath = url.pathname === "/" ? "/index.html" : url.pathname
+        const filePathAbs = cfg.webRoot + filePath
+        try {
+          const file = Bun.file(filePathAbs)
+          const stat = file.size
+          if (stat > 0 || filePathAbs.endsWith("/index.html")) return new Response(file)
+        } catch {}
+      }
+      return new Response("Not Found", { status: 404 })
+    },
+  })
+
+  // Broadcast loop
+  setInterval(() => {
+    const wire = sceneStateToWire(state, Date.now())
+    cachedSceneWire = wire
+    cachedSceneJson = JSON.stringify({ type: "scene", data: wire })
+    if (clients.size === 0) return
+    for (const ws of clients) {
+      try { ws.send(cachedSceneJson) } catch { clients.delete(ws) }
+    }
+  }, 1000)
+
+  log.warn("daemon running", { port: cfg.port })
+
+  return { state, server, clients, hookServer, processInterval }
 }
 
 // ── Sessions API ───────────────────────────────────────────────────
