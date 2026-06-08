@@ -22,7 +22,7 @@ export function runDbMigrate(args: string[]): void {
     const before = getCurrentVersion(db)
     migrate(db)
     const after = getCurrentVersion(db)
-    log.info("database migrated", { from: before, to: after, path: dbPath })
+    log.warn("database migrated", { from: before, to: after, path: dbPath })
     db.close()
   } catch (e) {
     log.error("database migration failed", { error: String(e), path: dbPath })
