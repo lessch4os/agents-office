@@ -21,12 +21,16 @@ function pgrep(name: string, exact = true): number | null {
 }
 
 function getExeDir(): string {
-  if (import.meta.dir) {
+  if (import.meta.dir && !import.meta.dir.startsWith("/$bunfs/")) {
     return path.resolve(import.meta.dir, "../..")
   }
   try {
+    const execPath = process.execPath
+    if (execPath && fs.existsSync(execPath)) return path.dirname(path.resolve(execPath))
+  } catch {}
+  try {
     const main = Bun.main as string
-    if (main && !main.startsWith("/$bunfs/")) return path.dirname(main)
+    if (main && !main.startsWith("/$bunfs/") && fs.existsSync(main)) return path.dirname(main)
   } catch {}
   return process.cwd()
 }
@@ -74,6 +78,7 @@ function findPluginDist(): string | null {
   const candidates = [
     path.join(srcDir ?? "", "dist", "opencode-plugin.js"),
     path.join(exeDir, "dist", "opencode-plugin.js"),
+    path.join(exeDir, "..", "share", "agents-office", "opencode-plugin.js"),
   ].filter(c => c.startsWith("/"))
   for (const c of candidates) {
     try { fs.accessSync(c); return path.resolve(c) } catch {}
