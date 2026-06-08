@@ -64,7 +64,7 @@ fi
 step 'running db-migrate on legacy DB'
 OUTPUT="$("$BINARY" db-migrate --db "$DB" 2>&1)"
 echo "$OUTPUT"
-if ! echo "$OUTPUT" | grep -q "migrated from version 0 to 1"; then
+if ! echo "$OUTPUT" | grep -q '"msg":"database migrated"'; then
   fail "db-migrate did not report successful migration"
 fi
 
@@ -75,12 +75,12 @@ else
   fail 'transport column still missing after migration'
 fi
 
-step 'verifying user_version is now 1'
+step 'verifying user_version'
 VERSION="$(sqlite3 "$DB" "PRAGMA user_version;")"
-if [ "$VERSION" = "1" ]; then
-  printf '\033[32m[binary-migration] OK — user_version is 1\033[0m\n' >&2
+if [ "$VERSION" = "4" ]; then
+  printf '\033[32m[binary-migration] OK — user_version is 4\033[0m\n' >&2
 else
-  fail "expected user_version 1, got $VERSION"
+  fail "expected user_version 4 (got $VERSION)"
 fi
 
 step 'verifying existing sessions data is preserved'
