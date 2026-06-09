@@ -43,7 +43,7 @@ scripts/                  Shell scripts for install, debug, health check
 | `daemon/src/sources/jsonl-watcher.ts` | CC transcript file watcher (fs.watch + periodic scan) |
 | `daemon/src/decoders/hook-decoder.ts` | CC/OC hook payload decoder (SessionStart, PreToolUse, TokenUpdate, etc.) |
 | `daemon/src/decoders/cc-jsonl.ts` | CC JSONL transcript line decoder (token extraction here) |
-| `daemon/src/db/migrate.ts` | Migration runner (current version: 4) |
+| `daemon/src/db/migrate.ts` | Migration runner (current version: 5) |
 | `daemon/src/db/migrations.ts` | SQL migration definitions |
 | `daemon/src/services/logger.ts` | Logger with file appender, level filtering |
 | `daemon/src/opencode-plugin.ts` | OpenCode plugin (built separately, not part of daemon) |

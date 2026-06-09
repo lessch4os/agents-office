@@ -15,6 +15,8 @@ function ensureColumns(db: Database): void {
       cost_usd: "REAL NOT NULL DEFAULT 0.0",
       cache_hit_rate: "REAL NOT NULL DEFAULT 0.0",
       tags: "TEXT NOT NULL DEFAULT '[]'",
+      origin: "TEXT NOT NULL DEFAULT 'local'",
+      machine_name: "TEXT",
     },
     token_snapshots: {
       cumul_cache: "INTEGER NOT NULL DEFAULT 0",
@@ -69,6 +71,17 @@ export function migrate(db: Database): void {
       db.run("ALTER TABLE sessions DROP COLUMN agent_id")
     }
     setVersion(db, 4)
+  }
+
+  if (currentVersion < 5) {
+    const sessionCols = db.query("PRAGMA table_info('sessions')").all() as { name: string }[]
+    const hasSessions = sessionCols.length > 0
+    if (hasSessions) {
+      for (const stmt of migrations[4].up) {
+        db.run(stmt)
+      }
+    }
+    setVersion(db, 5)
   }
 
   // Ensure all expected columns exist (handles DBs upgraded from old code)

@@ -72,6 +72,8 @@ export interface WireSessionSummary {
   source: string
   label: string
   cwd: string
+  origin: string
+  machine_name: string | null
   agent_type: string | null
   context_window_limit: number
   started_at: number

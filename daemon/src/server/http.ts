@@ -106,11 +106,13 @@ export function makeDaemon(cfg: {
             source: transport, sessionId: syntheticSid, cwd: "",
           }
           state = applyEvent(state, meta, startEvent as any, now, transport)
+          const autoSlot = HashMap.get(state.agents, key)
+          const autoLabel = autoSlot._tag === "Some" ? autoSlot.value.label : syntheticSid
           try {
-            db.insert(sessions).values({
-              sessionId: syntheticSid, source: transport, label: "",
-              cwd: "", agentType: null, contextWindowLimit: 200000, startedAt: now,
-            }).onConflictDoUpdate({
+          db.insert(sessions).values({
+            sessionId: syntheticSid, source: transport, label: autoLabel,
+            cwd: "", origin: transport === "remote-hook" ? "remote" : "local", agentType: null, contextWindowLimit: 200000, startedAt: now,
+          }).onConflictDoUpdate({
               target: sessions.sessionId,
               set: { label: sql`excluded.label`, source: sql`excluded.source` },
             }).run()
@@ -124,12 +126,19 @@ export function makeDaemon(cfg: {
 
       try {
         if (event.type === "sessionStart") {
+          const ssKey = String(event.agentId)
+          const ssSlot = HashMap.get(state.agents, ssKey)
+          const ssLabel = ssSlot._tag === "Some" ? ssSlot.value.label : ""
+          const ssOrigin = ssSlot._tag === "Some" ? ssSlot.value.origin : (transport === "remote-hook" ? "remote" : "local")
+          const ssMachineName = ssSlot._tag === "Some" ? ssSlot.value.machineName : null
           db.insert(sessions).values({
             sessionId: event.sessionId,
             parentSessionId: (event as any).parentSessionId ?? null,
             source: event.source,
-            label: "",
+            label: ssLabel,
             cwd: event.cwd,
+            origin: ssOrigin,
+            machineName: ssMachineName,
             agentType: event.agentType ?? null,
             contextWindowLimit: event.contextWindowLimit ?? 200000,
             startedAt: now,
@@ -455,6 +464,8 @@ function rowToSummary(row: any): any {
     source: safeStr(row, "source", "source") ?? "",
     label: safeStr(row, "label", "label") ?? "",
     cwd: safeStr(row, "cwd", "cwd") ?? "",
+    origin: safeStr(row, "origin", "origin", "local"),
+    machine_name: safeStr(row, "machineName", "machine_name"),
     agent_type: safeStr(row, "agentType", "agent_type"),
     context_window_limit: safeNum(row, "contextWindowLimit", "context_window_limit"),
     started_at: safeNum(row, "startedAt", "started_at"),

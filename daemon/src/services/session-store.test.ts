@@ -12,7 +12,8 @@ function makeTestDb(): Db {
   sqlite.run(`CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY, parent_session_id TEXT,
     source TEXT NOT NULL, label TEXT NOT NULL DEFAULT '',
-    cwd TEXT NOT NULL DEFAULT '', agent_type TEXT,
+    cwd TEXT NOT NULL DEFAULT '', origin TEXT NOT NULL DEFAULT 'local',
+    machine_name TEXT, agent_type TEXT,
     context_window_limit INTEGER NOT NULL DEFAULT 200000,
     started_at INTEGER NOT NULL, ended_at INTEGER,
     input_tokens INTEGER NOT NULL DEFAULT 0,

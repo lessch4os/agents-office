@@ -54,11 +54,13 @@ describe("DB migration", () => {
     const db = makeEmptyDb()
     migrate(db)
 
-    expect(getCurrentVersion(db)).toBe(4)
+    expect(getCurrentVersion(db)).toBe(5)
 
     const sessionCols = getColumns(db, "sessions")
     expect(sessionCols).toContain("session_id")
     expect(sessionCols).toContain("model_name")
+    expect(sessionCols).toContain("origin")
+    expect(sessionCols).toContain("machine_name")
     expect(sessionCols).not.toContain("agent_id")
 
     const rawCols = getColumns(db, "raw_events")
@@ -86,7 +88,7 @@ describe("DB migration", () => {
 
     migrate(db)
 
-    expect(getCurrentVersion(db)).toBe(4)
+    expect(getCurrentVersion(db)).toBe(5)
 
     const afterCols = getColumns(db, "raw_events")
     expect(afterCols).toContain("transport")
@@ -98,9 +100,9 @@ describe("DB migration", () => {
   test("idempotent: running migrate twice does not fail", () => {
     const db = makeEmptyDb()
     migrate(db)
-    expect(getCurrentVersion(db)).toBe(4)
+    expect(getCurrentVersion(db)).toBe(5)
     migrate(db)
-    expect(getCurrentVersion(db)).toBe(4)
+    expect(getCurrentVersion(db)).toBe(5)
   })
 
   test("v2 upgrades model_pricing columns", () => {
@@ -120,7 +122,7 @@ describe("DB migration", () => {
 
     migrate(db)
 
-    expect(getCurrentVersion(db)).toBe(4)
+    expect(getCurrentVersion(db)).toBe(5)
     const afterCols = getColumns(db, "model_pricing")
     expect(afterCols).toContain("model_name")
     expect(afterCols).toContain("source")
@@ -162,7 +164,7 @@ describe("DB migration", () => {
 
     migrate(db)
 
-    expect(getCurrentVersion(db)).toBe(4)
+    expect(getCurrentVersion(db)).toBe(5)
 
     // Sessions data preserved
     const sessions = db.query("SELECT session_id, source, label, started_at FROM sessions WHERE session_id = 'legacy-s1'").all() as any[]
@@ -174,6 +176,8 @@ describe("DB migration", () => {
     expect(sessionCols).toContain("cost_usd")
     expect(sessionCols).toContain("cache_hit_rate")
     expect(sessionCols).toContain("tags")
+    expect(sessionCols).toContain("origin")
+    expect(sessionCols).toContain("machine_name")
     expect(sessionCols).not.toContain("agent_id")
 
     // raw_events has transport column
@@ -208,7 +212,7 @@ describe("DB migration", () => {
 
     migrate(db)
 
-    expect(getCurrentVersion(db)).toBe(4)
+    expect(getCurrentVersion(db)).toBe(5)
     const afterCols = getColumns(db, "sessions")
     expect(afterCols).not.toContain("agent_id")
 

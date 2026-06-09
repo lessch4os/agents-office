@@ -241,7 +241,7 @@ test("DB migration matches schema expectations", async () => {
   const { Database } = await import("bun:sqlite")
   const db = new Database(":memory:")
   migrate(db)
-  expect(getCurrentVersion(db)).toBe(4)
+  expect(getCurrentVersion(db)).toBe(5)
 
   for (const table of ["sessions", "raw_events", "token_snapshots", "model_pricing"]) {
     const cols = db.query(`PRAGMA table_info('${table}')`).all() as { name: string }[]

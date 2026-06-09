@@ -6,6 +6,8 @@ export const sessions = sqliteTable("sessions", {
   source: text("source").notNull(),
   label: text("label").notNull().default(""),
   cwd: text("cwd").notNull().default(""),
+  origin: text("origin").notNull().default("local"),
+  machineName: text("machine_name"),
   agentType: text("agent_type"),
   contextWindowLimit: integer("context_window_limit").notNull().default(200000),
   startedAt: integer("started_at").notNull(),

@@ -242,9 +242,14 @@ function installPlugin(pluginPath: string): void {
   const target = `${pluginDir}/agents-office.js`
   fs.mkdirSync(pluginDir, { recursive: true })
 
-  if (fs.existsSync(target)) {
-    const stat = fs.lstatSync(target)
-    if (stat.isSymbolicLink()) {
+  // Use lstatSync (does not follow symlinks) to detect dangling symlinks
+  // that fs.existsSync would miss (e.g. after Homebrew upgrade when old
+  // cellar path no longer exists).
+  let existing: fs.Stats | undefined
+  try { existing = fs.lstatSync(target) } catch {}
+
+  if (existing) {
+    if (existing.isSymbolicLink()) {
       fs.unlinkSync(target)
     } else {
       fs.renameSync(target, `${target}.bak`)
@@ -253,7 +258,7 @@ function installPlugin(pluginPath: string): void {
   }
 
   fs.symlinkSync(pluginPath, target)
-  ok(`plugin linked: ${pluginPath} \u2192 ${target}`)
+  ok(`plugin linked: ${pluginPath} → ${target}`)
 }
 
 function removePlugin(): boolean {

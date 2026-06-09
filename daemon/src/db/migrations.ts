@@ -72,4 +72,12 @@ export const migrations: Migration[] = [
     up: [
     ],
   },
+  {
+    version: 5,
+    description: "Add origin and machine_name columns to sessions for remote/local tracking",
+    up: [
+      "ALTER TABLE sessions ADD COLUMN origin TEXT NOT NULL DEFAULT 'local'",
+      "ALTER TABLE sessions ADD COLUMN machine_name TEXT",
+    ],
+  },
 ]

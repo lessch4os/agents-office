@@ -55,7 +55,7 @@ const SOURCE_COLORS: Record<string, string> = {
 
 function SourceBadge({ source }: { source: string }) {
   const color = SOURCE_COLORS[source] ?? "var(--text-on-surface-dim)"
-  const label = source === "claude-code" ? "cc" : source === "antigravity" ? "ag" : source.slice(0, 2)
+  const label = source === "claude-code" ? "cc" : source === "antigravity" ? "ag" : source === "opencode" ? "oc" : source.slice(0, 2)
   return (
     <span style={{
       color,
@@ -300,11 +300,16 @@ function SessionList({ onSelect, onCompare }: SessionListProps) {
                     />
                   </td>
                   <td
-                    style={{ ...cellStyle, color: "#ccc", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}
+                    style={{ ...cellStyle, color: "#ccc", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}
                     onClick={() => onSelect(s.session_id)}
                   >
                     {s.parent_session_id && <span style={{ color: "var(--text-on-surface-subtle)", marginRight: 4 }}>↳</span>}
                     {s.label}
+                    {s.origin === "remote" && (
+                      <span style={{ marginLeft: 6, fontSize: 9, color: "#fa4", border: "1px solid #fa4", borderRadius: 3, padding: "1px 4px", opacity: 0.8 }}>
+                        {s.machine_name ?? "remote"}
+                      </span>
+                    )}
                   </td>
                   <td style={cellStyle} onClick={() => onSelect(s.session_id)}>
                     <SourceBadge source={s.source} />
