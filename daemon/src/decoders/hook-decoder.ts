@@ -124,7 +124,8 @@ const decoders = {
     const contextWindowLimit = getNum(v, "context_window_limit")
     const parentSessionId = getStr(v, "parent_session_id")
     const machineName = getStr(v, "machine_name")
-    return [{
+    const model = getStr(v, "model")
+    const events: AgentEvent[] = [{
       type: "sessionStart",
       agentId: ctx.agentId,
       source: ctx.source,
@@ -136,6 +137,10 @@ const decoders = {
       contextWindowLimit,
       machineName: machineName ?? undefined,
     }]
+    if (model) {
+      events.push({ type: "modelUpdate", agentId: ctx.agentId, modelId: model })
+    }
+    return events
   },
 
   PreToolUse(v: Record<string, unknown>, ctx: ReturnType<typeof makeCtx>): AgentEvent[] {

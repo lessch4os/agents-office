@@ -3,6 +3,8 @@ import { modelPricing } from "../db/schema"
 import { eq } from "drizzle-orm"
 
 const DEFAULT_TABLE: Record<string, { inputPerM: number; outputPerM: number; cacheReadPerM: number }> = {
+  "claude-sonnet-4-6-20250514":     { inputPerM: 3.0,   outputPerM: 15.0,  cacheReadPerM: 0.30 },
+  "claude-sonnet-4-6":              { inputPerM: 3.0,   outputPerM: 15.0,  cacheReadPerM: 0.30 },
   "claude-sonnet-4-20250514":       { inputPerM: 3.0,   outputPerM: 15.0,  cacheReadPerM: 0.30 },
   "claude-sonnet-4":                { inputPerM: 3.0,   outputPerM: 15.0,  cacheReadPerM: 0.30 },
   "claude-3-5-sonnet-20241022":     { inputPerM: 3.0,   outputPerM: 15.0,  cacheReadPerM: 0.30 },
@@ -19,11 +21,13 @@ const DEFAULT_TABLE: Record<string, { inputPerM: number; outputPerM: number; cac
 }
 
 const DEFAULT_LIMITS: Record<string, number> = {
-  "claude-sonnet-4-20250514":   200000,
-  "claude-sonnet-4":            200000,
-  "claude-3-5-sonnet-20241022": 200000,
-  "claude-3-5-haiku-20241022":  200000,
-  "claude-opus-4-20250514":     200000,
+  "claude-sonnet-4-6-20250514": 1000000,
+  "claude-sonnet-4-6":          1000000,
+  "claude-sonnet-4-20250514":   1000000,
+  "claude-sonnet-4":            1000000,
+  "claude-3-5-sonnet-20241022": 1000000,
+  "claude-3-5-haiku-20241022":  1000000,
+  "claude-opus-4-20250514":     1000000,
   "gpt-4o":                     128000,
   "gpt-4o-mini":                128000,
   "o4-mini":                    200000,

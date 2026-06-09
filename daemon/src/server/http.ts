@@ -73,7 +73,7 @@ export function makeDaemon(cfg: {
     if (fs.existsSync(ccRoot)) {
       Effect.runPromise(
         Effect.gen(function* () {
-          const source = yield* makeJsonlWatcherSource(ccRoot, "jsonl", decodeCcLine, ccDeriveLabel, ccSessionEnded)
+          const source = yield* makeJsonlWatcherSource(ccRoot, "claude-code", decodeCcLine, ccDeriveLabel, ccSessionEnded)
           yield* Stream.runForEach(source.events, ([ev, transport]) =>
             Effect.sync(() => { eventBuf.push([ev, transport]) }),
           )
