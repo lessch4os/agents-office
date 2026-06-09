@@ -1,5 +1,6 @@
 import { HashMap, HashSet } from "effect"
 import { getLogger } from "../services/logger"
+import { lookupContextLimit } from "../services/pricing"
 
 export const HOOK_WINS_WINDOW = 500
 export const EXIT_GRACE_WINDOW = 4500
@@ -424,7 +425,7 @@ function handleModelUpdate(
   event: { type: "modelUpdate"; agentId: number; modelId: string; contextWindowLimit?: number },
 ): AgentSlot | undefined {
   if (!slot) return undefined
-  return { ...slot, modelName: event.modelId, contextWindowLimit: event.contextWindowLimit ?? slot.contextWindowLimit, lastEventAt: Date.now() }
+  return { ...slot, modelName: event.modelId, contextWindowLimit: event.contextWindowLimit ?? lookupContextLimit(event.modelId) ?? slot.contextWindowLimit, lastEventAt: Date.now() }
 }
 
 function handleSessionEnd(
