@@ -7,7 +7,7 @@ import { runDbMigrate } from "./cli/db-migrate"
 import { runInstall, runUninstall } from "./cli/install"
 import { Logger, getLogger, setLogger } from "./services/logger"
 
-const VERSION = "0.36.0"
+const VERSION = "0.1.36"
 
 function setupLogger(level: number, component: string): Logger {
   const log = new Logger(level, component)
