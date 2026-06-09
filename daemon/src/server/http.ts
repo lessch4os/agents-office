@@ -13,6 +13,7 @@ import { addTag, removeTag } from "../services/session-store"
 import { startHookSocket } from "../sources/hook-socket"
 import { makeJsonlWatcherSource } from "../sources/jsonl-watcher"
 import { decodeCcLine, ccSessionEnded, ccDeriveLabel } from "../decoders/cc-jsonl"
+import { toolDetailDisplay, toolDetailToolName } from "../schemas/agent-event"
 import { getLogger } from "../services/logger"
 
 const log = getLogger()
@@ -39,6 +40,19 @@ export function makeDaemon(cfg: {
 
   let state = createInitialState(cfg.maxDesks)
   const eventBuf: Array<readonly [AgentEvent, string]> = []
+
+  // Tool start tracking for activity log duration_ms
+  const toolStartInfo = new Map<string, { ts: number; toolName?: string; detail?: string }>()
+  function broadcastLogEntry(entry: {
+    agent_id: number; timestamp_ms: number; tool_name: string | null;
+    detail: string; log_type: string; truncated: boolean;
+    tool_input?: string; duration_ms?: number;
+  }): void {
+    const msg = JSON.stringify({ type: "log", data: entry })
+    for (const ws of clients) {
+      try { ws.send(msg) } catch { clients.delete(ws) }
+    }
+  }
 
   // Hook socket — receive events from hook shim + OC plugin
   const hookServer = startHookSocket(cfg.socket, (event, transport) => {
@@ -163,6 +177,53 @@ export function makeDaemon(cfg: {
         }
       } catch (e) {
         log.warn("db persist error", { error: String(e) })
+      }
+
+      // Broadcast activity log entries to WebSocket clients
+      switch (event.type) {
+        case "activityStart": {
+          if (event.toolUseId) {
+            toolStartInfo.set(event.toolUseId, {
+              ts: now,
+              toolName: event.detail ? toolDetailToolName(event.detail) ?? undefined : undefined,
+              detail: event.detail ? toolDetailDisplay(event.detail) : event.activity,
+            })
+          }
+          broadcastLogEntry({
+            agent_id: event.agentId,
+            timestamp_ms: now,
+            tool_name: event.detail ? toolDetailToolName(event.detail) ?? null : null,
+            detail: event.detail ? toolDetailDisplay(event.detail) : event.activity,
+            log_type: event.activity === "typing" ? "tool_start" : "thought",
+            truncated: false,
+          })
+          break
+        }
+        case "activityEnd": {
+          const info = event.toolUseId ? toolStartInfo.get(event.toolUseId) : undefined
+          broadcastLogEntry({
+            agent_id: event.agentId,
+            timestamp_ms: now,
+            tool_name: info?.toolName ?? null,
+            detail: info?.detail ?? "",
+            log_type: "tool_result",
+            truncated: false,
+            duration_ms: info ? now - info.ts : undefined,
+          })
+          if (event.toolUseId) toolStartInfo.delete(event.toolUseId)
+          break
+        }
+        case "waiting": {
+          broadcastLogEntry({
+            agent_id: event.agentId,
+            timestamp_ms: now,
+            tool_name: null,
+            detail: event.reason,
+            log_type: "waiting",
+            truncated: false,
+          })
+          break
+        }
       }
     }
   }, 100)

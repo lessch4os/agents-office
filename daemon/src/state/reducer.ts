@@ -398,7 +398,13 @@ function handleTokenUsage(
     newSlot.sessionTotalTokens = (newSlot.sessionTotalTokens + event.input + event.output) >>> 0
     if (event.cacheRead !== undefined) newSlot.cacheReadTokens = (newSlot.cacheReadTokens + event.cacheRead) >>> 0
   }
-  if (event.total !== undefined) newSlot.contextTotalTokens = event.total >>> 0
+  if (event.total !== undefined) {
+    if (event.cumulative) {
+      newSlot.contextTotalTokens = event.total >>> 0
+    } else {
+      newSlot.contextTotalTokens = (newSlot.contextTotalTokens + event.total) >>> 0
+    }
+  }
   newSlot.lastEventAt = Date.now()
   return newSlot
 }
