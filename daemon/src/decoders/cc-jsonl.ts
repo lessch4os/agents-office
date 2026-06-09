@@ -4,14 +4,13 @@ import type { AgentEvent } from "../schemas/agent-event"
 function extractTokenUsage(usageObj: Record<string, unknown>, agentId: number): AgentEvent | null {
   const rawInput = getNum(usageObj, "input_tokens") ?? 0
   const cacheRead = getNum(usageObj, "cache_read_input_tokens") ?? 0
-  const input = Math.max(0, rawInput - cacheRead)
+  const cacheCreation = getNum(usageObj, "cache_creation_input_tokens") ?? 0
+  const input = rawInput + cacheRead + cacheCreation
   const output = getNum(usageObj, "output_tokens") ?? 0
   if (input === 0 && output === 0) return null
-  const event: AgentEvent = { type: "tokenUsage", agentId, input, output }
+  const event: AgentEvent = { type: "tokenUsage", agentId, input, output, cumulative: true }
   if (cacheRead > 0) event.cacheRead = cacheRead
-  const cacheCreation = getNum(usageObj, "cache_creation_input_tokens") ?? 0
-  const total = getNum(usageObj, "total_tokens") ?? (rawInput + cacheRead + cacheCreation + output)
-  if (total > 0) event.total = total
+  event.total = input + output
   return event
 }
 

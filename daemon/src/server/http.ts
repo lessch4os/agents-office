@@ -161,7 +161,15 @@ export function makeDaemon(cfg: {
               }).where(eq(sessions.sessionId, sid)).run()
             }
             if (event.total) {
-              const pct = event.total > 0 ? ((event.input + event.output) / event.total) * 100 : 0
+              let contextTotal = 0
+              let contextLimit = 200000
+              const key = String(event.agentId)
+              const slotOpt = HashMap.get(state.agents, key)
+              if (slotOpt._tag === "Some") {
+                contextTotal = slotOpt.value.contextTotalTokens
+                contextLimit = slotOpt.value.contextWindowLimit
+              }
+              const pct = contextLimit > 0 ? Math.min(1, contextTotal / contextLimit) : 0
               db.insert(tokenSnapshots).values({
                 sessionId: sid, ts: now,
                 cumulInput: event.input, cumulOutput: event.output, contextPct: pct,
